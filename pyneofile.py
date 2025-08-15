@@ -284,11 +284,11 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
         except Exception:
             return default
 
-    magic = _get('magic', 'ArchiveFile')
+    magic = _get('magic', 'NeoFile')
     ver   = _get('ver', '001')
     delim = _get('delimiter', '\\x00')
     newst = _get('newstyle', 'true')
-    ext   = _get('extension', '.arc')
+    ext   = _get('extension', '.neo')
 
     delim_real = _decode_delim_escape(delim)
     ver_digits = _ver_digits(ver)
