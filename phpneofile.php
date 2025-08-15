@@ -2,11 +2,11 @@
 /**
  * PyNeoFile (PHP)
  * ---------------------------------------------------------------------
- * A PHP implementation compatible with the Python "pyneoarc_alt" module.
+ * A PHP implementation compatible with the Python "pyneoarc_neo" module.
  * - Same archive wire-format (ArchiveFile + ver digits + NUL delimiter)
- * - Functions: pack_alt, pack_iter_alt, unpack_alt, repack_alt,
- *              archive_to_array_alt, archivefilelistfiles_alt,
- *              archivefilevalidate_alt, convert_foreign_to_alt
+ * - Functions: pack_neo, pack_iter_neo, unpack_neo, repack_neo,
+ *              archive_to_array_neo, archivefilelistfiles_neo,
+ *              archivefilevalidate_neo, convert_foreign_to_neo
  * - In-memory I/O: accept bytes strings and stream resources; return bytes when $outfile === null or "-"
  * - INI auto-fallback (PYNEOFILE_INI/pyneofile.ini, or archivefile.ini/catfile.ini/foxfile.ini)
  * - Compression: none|zlib|gzip|bz2 (xz not provided in stock PHP)
@@ -558,7 +558,7 @@ function _neo_parse_record($ns, $formatspecs, $listonly=false, $skipchecksum=fal
 
 # ----------------------- Public API -----------------------
 
-function pack_iter_alt($items, $outfile=null, $formatspecs=null,
+function pack_iter_neo($items, $outfile=null, $formatspecs=null,
                        $checksumtypes=array('crc32','crc32','crc32'),
                        $encoding='UTF-8', $compression='auto', $compression_level=null) {
     $fs = _neo_ensure_formatspecs($formatspecs);
@@ -630,7 +630,7 @@ function pack_iter_alt($items, $outfile=null, $formatspecs=null,
     return true;
 }
 
-function pack_alt($infiles, $outfile=null, $formatspecs=null,
+function pack_neo($infiles, $outfile=null, $formatspecs=null,
                   $checksumtypes=array('crc32','crc32','crc32'),
                   $encoding='UTF-8', $compression='auto', $compression_level=null) {
     // in-memory dict {name=>bytes|null}
@@ -640,7 +640,7 @@ function pack_alt($infiles, $outfile=null, $formatspecs=null,
             $is_dir = ($data === null) || (substr($name, -1) === '/');
             $items[] = array('name'=>$name, 'is_dir'=>$is_dir, 'data'=>$is_dir?null:$data);
         }
-        return pack_iter_alt($items, $outfile, $formatspecs, $checksumtypes, $encoding, $compression, $compression_level);
+        return pack_iter_neo($items, $outfile, $formatspecs, $checksumtypes, $encoding, $compression, $compression_level);
     }
 
     // list of paths or single path
@@ -710,7 +710,7 @@ function pack_alt($infiles, $outfile=null, $formatspecs=null,
     return true;
 }
 
-function archive_to_array_alt($infile, $formatspecs=null, $listonly=false, $skipchecksum=false, $uncompress=true) {
+function archive_to_array_neo($infile, $formatspecs=null, $listonly=false, $skipchecksum=false, $uncompress=true) {
     $fs = _neo_ensure_formatspecs($formatspecs);
     list($ns, $fpclose) = _neo_open_in($infile);
     $top = _neo_parse_global_header($ns, $fs);
@@ -723,8 +723,8 @@ function archive_to_array_alt($infile, $formatspecs=null, $listonly=false, $skip
     return $top;
 }
 
-function unpack_alt($infile, $outdir='.', $formatspecs=null, $skipchecksum=false, $uncompress=true) {
-    $arr = archive_to_array_alt($infile, $formatspecs, false, $skipchecksum, $uncompress);
+function unpack_neo($infile, $outdir='.', $formatspecs=null, $skipchecksum=false, $uncompress=true) {
+    $arr = archive_to_array_neo($infile, $formatspecs, false, $skipchecksum, $uncompress);
     if (!$arr) return false;
 
     if ($outdir === null || $outdir === '-') {
@@ -754,10 +754,10 @@ function unpack_alt($infile, $outdir='.', $formatspecs=null, $skipchecksum=false
     return true;
 }
 
-function repack_alt($infile, $outfile=null, $formatspecs=null,
+function repack_neo($infile, $outfile=null, $formatspecs=null,
                     $checksumtypes=array('crc32','crc32','crc32'),
                     $compression='auto', $compression_level=null) {
-    $arr = archive_to_array_alt($infile, $formatspecs, false, false, false); // stored bytes
+    $arr = archive_to_array_neo($infile, $formatspecs, false, false, false); // stored bytes
     $fs = _neo_ensure_formatspecs($formatspecs);
     list($bufMode, $fp, $buf) = _neo_open_out($outfile);
     $out = "";
@@ -819,7 +819,7 @@ function repack_alt($infile, $outfile=null, $formatspecs=null,
     return true;
 }
 
-function archivefilelistfiles_alt($infile, $formatspecs=null, $advanced=false, $include_dirs=true) {
+function archivefilelistfiles_neo($infile, $formatspecs=null, $advanced=false, $include_dirs=true) {
     $fs = _neo_ensure_formatspecs($formatspecs);
     list($ns, $fpclose) = _neo_open_in($infile);
     _neo_parse_global_header($ns, $fs);
@@ -847,7 +847,7 @@ function archivefilelistfiles_alt($infile, $formatspecs=null, $advanced=false, $
     return $out;
 }
 
-function archivefilevalidate_alt($infile, $formatspecs=null, $verbose=false, $return_details=false) {
+function archivefilevalidate_neo($infile, $formatspecs=null, $verbose=false, $return_details=false) {
     $fs = _neo_ensure_formatspecs($formatspecs);
     list($ns, $fpclose) = _neo_open_in($infile);
     _neo_parse_global_header($ns, $fs);
@@ -880,7 +880,7 @@ function archivefilevalidate_alt($infile, $formatspecs=null, $verbose=false, $re
 
 # ----------------------- Convert (zip/tar stdlib) -----------------------
 
-function convert_foreign_to_alt($infile, $outfile=null, $formatspecs=null,
+function convert_foreign_to_neo($infile, $outfile=null, $formatspecs=null,
                                 $checksumtypes=array('crc32','crc32','crc32'),
                                 $compression='auto', $compression_level=null) {
     // zip
@@ -898,7 +898,7 @@ function convert_foreign_to_alt($infile, $outfile=null, $formatspecs=null,
             $items[] = array('name'=>$name, 'is_dir'=>$is_dir, 'data'=>$data);
         }
         $z->close();
-        return pack_iter_alt($items, $outfile, $formatspecs, $checksumtypes, 'UTF-8', $compression, $compression_level);
+        return pack_iter_neo($items, $outfile, $formatspecs, $checksumtypes, 'UTF-8', $compression, $compression_level);
     }
 
     // tar(.gz/.bz2/.xz*) via PharData (xz not standard)
@@ -912,7 +912,7 @@ function convert_foreign_to_alt($infile, $outfile=null, $formatspecs=null,
             $data = $is_dir ? null : file_get_contents($file->getPathname());
             $items[] = array('name'=>$name, 'is_dir'=>$is_dir, 'data'=>$data);
         }
-        return pack_iter_alt($items, $outfile, $formatspecs, $checksumtypes, 'UTF-8', $compression, $compression_level);
+        return pack_iter_neo($items, $outfile, $formatspecs, $checksumtypes, 'UTF-8', $compression, $compression_level);
     }
 
     throw new \Exception("Unsupported foreign archive (zip/tar.* only in PHP port)");

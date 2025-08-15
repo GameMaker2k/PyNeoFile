@@ -3,7 +3,7 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
 
 """
-pyneoarc_alt.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
+pyneofile.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
 
 Features:
 - Pack / unpack / repack / archive_to_array
@@ -156,7 +156,7 @@ def _wrap_outfile(outfile):
     return _iopen(outfile, 'wb'), True, False
 
 def _normalize_pack_inputs(infiles):
-    """Normalize in-memory inputs into items for pack_iter_alt.
+    """Normalize in-memory inputs into items for pack_iter_neo.
     Supported forms:
       - dict {name: bytes_or_None} (None => directory if name endswith('/'))
       - list/tuple of (name, bytes) or (name, is_dir, bytes_or_None) or dicts
@@ -240,7 +240,7 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
     envp = os.environ.get('PYNEOFILE_INI') or os.environ.get('PYARCHIVE_INI')
     if envp:
         cands.append(envp)
-    cands.extend(['pyneofile.ini', 'archivefile.ini', 'catfile.ini', 'foxfile.ini'])
+    cands.extend(['pyneofile.ini'])
 
     picked = None
     for p in cands:
@@ -704,7 +704,7 @@ def _parse_record(fp, formatspecs, listonly=False, skipchecksum=False, uncompres
     }
 
 # ---------------- Public API ----------------
-def pack_alt(infiles, outfile=None, formatspecs=None,
+def pack_neo(infiles, outfile=None, formatspecs=None,
              checksumtypes=("crc32","crc32","crc32"),
              encoding="UTF-8",
              compression="auto",
@@ -716,7 +716,7 @@ def pack_alt(infiles, outfile=None, formatspecs=None,
     # In-memory sources?
     items = _normalize_pack_inputs(infiles)
     if items is not None:
-        return pack_iter_alt(items, outfile, formatspecs=fs,
+        return pack_iter_neo(items, outfile, formatspecs=fs,
                              checksumtypes=checksumtypes, encoding=encoding,
                              compression=compression, compression_level=compression_level)
 
@@ -811,7 +811,7 @@ def pack_alt(infiles, outfile=None, formatspecs=None,
         if close_me:
             fp.close()
 
-def archive_to_array_alt(infile, formatspecs=None,
+def archive_to_array_neo(infile, formatspecs=None,
                          listonly=False, skipchecksum=False, uncompress=True):
     fs = _ensure_formatspecs(formatspecs)
     fp, close_me = _wrap_infile(infile)
@@ -827,8 +827,8 @@ def archive_to_array_alt(infile, formatspecs=None,
         if close_me:
             fp.close()
 
-def unpack_alt(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompress=True):
-    arr = archive_to_array_alt(infile, formatspecs=formatspecs, listonly=False, skipchecksum=skipchecksum, uncompress=uncompress)
+def unpack_neo(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompress=True):
+    arr = archive_to_array_neo(infile, formatspecs=formatspecs, listonly=False, skipchecksum=skipchecksum, uncompress=uncompress)
     if not arr:
         return False
 
@@ -863,11 +863,11 @@ def unpack_alt(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompr
             pass
     return True
 
-def repack_alt(infile, outfile=None, formatspecs=None,
+def repack_neo(infile, outfile=None, formatspecs=None,
                checksumtypes=("crc32","crc32","crc32"),
                compression="auto",
                compression_level=None):
-    arr = archive_to_array_alt(infile, formatspecs=formatspecs, listonly=False, skipchecksum=False, uncompress=False)
+    arr = archive_to_array_neo(infile, formatspecs=formatspecs, listonly=False, skipchecksum=False, uncompress=False)
     fs = _ensure_formatspecs(formatspecs)
     fp, close_me, to_bytes = _wrap_outfile(outfile)
     try:
@@ -994,7 +994,7 @@ def _read_record_raw(fp, formatspecs):
 
     return headersize_hex, fields_len_hex, vals, json_bytes, content_stored
 
-def archivefilevalidate_alt(infile, formatspecs=None, verbose=False, return_details=False):
+def archivefilevalidate_neo(infile, formatspecs=None, verbose=False, return_details=False):
     """Validate an ArchiveFile using the alt parser."""
     fs = _ensure_formatspecs(formatspecs)
     details = []
@@ -1065,7 +1065,7 @@ def archivefilevalidate_alt(infile, formatspecs=None, verbose=False, return_deta
         return ok_all, details
     return ok_all
 
-def archivefilelistfiles_alt(infile, formatspecs=None, advanced=False, include_dirs=True):
+def archivefilelistfiles_neo(infile, formatspecs=None, advanced=False, include_dirs=True):
     """List entries in an archive without extracting."""
     fs = _ensure_formatspecs(formatspecs)
     out = []
@@ -1115,15 +1115,11 @@ def archivefilelistfiles_alt(infile, formatspecs=None, advanced=False, include_d
             fp.close()
     return out
 
-# Back-compat aliases
-ArchiveFileValidate_alt = archivefilevalidate_alt
-ArchiveFileListFiles_alt = archivefilelistfiles_alt
-
 # -----------------------------------------------------------------------------
 # Pack from iterator + foreign-archive conversion (stdlib + optional deps)
 # -----------------------------------------------------------------------------
 
-def pack_iter_alt(items, outfile, formatspecs=None,
+def pack_iter_neo(items, outfile, formatspecs=None,
                   checksumtypes=("crc32","crc32","crc32"),
                   encoding="UTF-8",
                   compression="auto",
@@ -1355,7 +1351,7 @@ def _iter_7z_members(z7):
             yield {'name': name, 'is_dir': False, 'data': blob,
                    'mode': (stat.S_IFREG | 0o644), 'mtime': int(time.time())}
 
-def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
+def convert_foreign_to_neo(infile, outfile=None, formatspecs=None,
                            checksumtypes=("crc32","crc32","crc32"),
                            compression="auto",
                            compression_level=None):
@@ -1372,7 +1368,7 @@ def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
         zsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
         try:
             with zipfile.ZipFile(zsrc, 'r') as zf:
-                return pack_iter_alt(_iter_zip_members(zf), outfile, formatspecs=formatspecs,
+                return pack_iter_neo(_iter_zip_members(zf), outfile, formatspecs=formatspecs,
                                      checksumtypes=checksumtypes, compression=compression,
                                      compression_level=compression_level)
         except zipfile.BadZipfile:
@@ -1383,7 +1379,7 @@ def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
         from io import BytesIO
         src = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
         with tarfile.open(src, 'r:*') as tf:
-            return pack_iter_alt(_iter_tar_members(tf), outfile, formatspecs=formatspecs,
+            return pack_iter_neo(_iter_tar_members(tf), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
                                  compression_level=compression_level)
 
@@ -1395,7 +1391,7 @@ def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
         from io import BytesIO
         rsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
         with rarfile.RarFile(rsrc) as rf:
-            return pack_iter_alt(_iter_rar_members(rf), outfile, formatspecs=formatspecs,
+            return pack_iter_neo(_iter_rar_members(rf), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
                                  compression_level=compression_level)
 
@@ -1407,7 +1403,7 @@ def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
         from io import BytesIO
         zsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
         with py7zr.SevenZipFile(zsrc, 'r') as z7:
-            return pack_iter_alt(_iter_7z_members(z7), outfile, formatspecs=formatspecs,
+            return pack_iter_neo(_iter_7z_members(z7), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
                                  compression_level=compression_level)
 
