@@ -16,8 +16,25 @@ New:
 import os, sys, argparse, tempfile, tarfile, io, base64
 import pyneofile as N
 
-__program_name__ = "pyneofile"
-__version__ = "0.2.0"
+__project__ = pyneofile.__project__
+__program_name__ = pyneofile.__program_name__
+__file_format_name__ = pyneofile.__file_format_name__
+__file_format_magic__ = pyneofile.__file_format_magic__
+__file_format_len__ = pyneofile.__file_format_len__
+__file_format_hex__ = pyneofile.__file_format_hex__
+__file_format_delimiter__ = pyneofile.__file_format_delimiter__
+__file_format_dict__ = pyneofile.__file_format_dict__
+__file_format_default__ = pyneofile.__file_format_default__
+__file_format_multi_dict__ = pyneofile.__file_format_multi_dict__
+__use_new_style__ = pyneofile.__use_new_style__
+__use_advanced_list__ = pyneofile.__use_advanced_list__
+__use_alt_inode__ = pyneofile.__use_alt_inode__
+__project_url__ = pyneofile.__project_url__
+__version_info__ = pyneofile.__version_info__
+__version_date_info__ = pyneofile.__version_date_info__
+__version_date__ = pyneofile.__version_date__
+__version_date_plusrc__ = pyneofile.__version_date_plusrc__
+__version__ = pyneofile.__version__
 
 def _stdout_bin():
     return getattr(sys.stdout, "buffer", sys.stdout)

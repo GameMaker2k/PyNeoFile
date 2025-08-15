@@ -53,6 +53,26 @@ except Exception:
     _lzma = None
     _HAVE_LZMA = False
 
+__program_name__ = "PyNeoFile"
+__project__ = __program_name__
+__project_url__ = "https://github.com/GameMaker2k/PyNeoFile"
+__version_info__ = (0, 19, 8, "RC 1", 1)
+__version_date_info__ = (2025, 8, 14, "RC 1", 1)
+__version_date__ = str(__version_date_info__[0]) + "." + str(
+    __version_date_info__[1]).zfill(2) + "." + str(__version_date_info__[2]).zfill(2)
+__revision__ = __version_info__[3]
+__revision_id__ = "$Id$"
+if(__version_info__[4] is not None):
+    __version_date_plusrc__ = __version_date__ + \
+        "-" + str(__version_date_info__[4])
+if(__version_info__[4] is None):
+    __version_date_plusrc__ = __version_date__
+if(__version_info__[3] is not None):
+    __version__ = str(__version_info__[0]) + "." + str(__version_info__[
+        1]) + "." + str(__version_info__[2]) + " " + str(__version_info__[3])
+if(__version_info__[3] is None):
+    __version__ = str(__version_info__[0]) + "." + str(__version_info__[1]) + "." + str(__version_info__[2])
+
 def _normalize_algo(algo):
     if not algo:
         return 'none'

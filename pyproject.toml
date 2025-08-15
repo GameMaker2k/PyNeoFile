@@ -1,0 +1,11 @@
+[project]
+    name = "PyArchiveFile"
+    version = "0.19.8"
+    readme = "README.md"
+    license = { text = "BSD-3-Clause" }
+    keywords = []
+    description = "A tar like file format name archivefile."
+    authors = [
+        { name = "Kazuki Przyborowski", email = "kazuki.przyborowski@gmail.com" },
+    ]
+    
