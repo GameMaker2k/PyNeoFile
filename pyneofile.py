@@ -3,7 +3,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals, generators, with_statement, nested_scopes
 
 """
-pyneofile.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
+pyneofile.py  —  Alternate NeoFile core with Py2/3 compatible logic.
 
 Features:
 - Pack / unpack / repack / archive_to_array
@@ -225,7 +225,7 @@ def _ver_digits(verstr):
 
 def _default_formatspecs():
     return {
-        'format_magic': 'ArchiveFile',
+        'format_magic': 'NeoFile',
         'format_ver': '001',
         'format_delimiter': '\x00',
         'new_style': True,
@@ -1015,7 +1015,7 @@ def _read_record_raw(fp, formatspecs):
     return headersize_hex, fields_len_hex, vals, json_bytes, content_stored
 
 def archivefilevalidate_neo(infile, formatspecs=None, verbose=False, return_details=False):
-    """Validate an ArchiveFile using the alt parser."""
+    """Validate an NeoFile using the alt parser."""
     fs = _ensure_formatspecs(formatspecs)
     details = []
     ok_all = True
@@ -1376,7 +1376,7 @@ def convert_foreign_to_neo(infile, outfile=None, formatspecs=None,
                            compression="auto",
                            compression_level=None):
     """
-    Convert a foreign archive (zip/tar/rar/7z) into the alt ArchiveFile format.
+    Convert a foreign archive (zip/tar/rar/7z) into the alt NeoFile format.
     Uses stdlib for zip/tar; requires 'rarfile' for RAR and 'py7zr' for 7z.
     Returns bytes when outfile is None/'-'; otherwise writes a file.
     """

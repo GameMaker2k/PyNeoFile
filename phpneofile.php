@@ -3,7 +3,7 @@
  * PyNeoFile (PHP)
  * ---------------------------------------------------------------------
  * A PHP implementation compatible with the Python "pyneoarc_neo" module.
- * - Same archive wire-format (ArchiveFile + ver digits + NUL delimiter)
+ * - Same archive wire-format (NeoFile + ver digits + NUL delimiter)
  * - Functions: pack_neo, pack_iter_neo, unpack_neo, repack_neo,
  *              archive_to_array_neo, archivefilelistfiles_neo,
  *              archivefilevalidate_neo, convert_foreign_to_neo
@@ -152,7 +152,7 @@ function _neo_decode_delim_escape($s) {
 
 function _neo_default_formatspecs() {
     return array(
-        'format_magic' => 'ArchiveFile',
+        'format_magic' => 'NeoFile',
         'format_ver' => '001',
         'format_delimiter' => "\x00",
         'new_style' => true,
@@ -186,7 +186,7 @@ function _neo_load_formatspecs_from_ini($paths=null, $prefer_section=null) {
     }
     if (!$sec) return null;
 
-    $magic = isset($ini[$sec]['magic']) ? $ini[$sec]['magic'] : 'ArchiveFile';
+    $magic = isset($ini[$sec]['magic']) ? $ini[$sec]['magic'] : 'NeoFile';
     $ver   = isset($ini[$sec]['ver']) ? $ini[$sec]['ver'] : '001';
     $delim = isset($ini[$sec]['delimiter']) ? $ini[$sec]['delimiter'] : "\\x00";
     $newst = isset($ini[$sec]['newstyle']) ? $ini[$sec]['newstyle'] : 'true';
