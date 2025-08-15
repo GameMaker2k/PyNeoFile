@@ -1,6 +1,6 @@
-
-# -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals, division, absolute_import
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+from __future__ import absolute_import, division, print_function, unicode_literals, generators, with_statement, nested_scopes
 
 """
 pyneofile.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
