@@ -38,7 +38,7 @@ def _build_formatspecs_from_args(args):
 
 def _convert_or_fail(infile, outpath, formatspecs, checksum, compression, level):
     try:
-        return N.convert_foreign_to_neo(infile, outpath, formatspecs=formatspecs,
+        return N.convert_foreign_to_alt(infile, outpath, formatspecs=formatspecs,
                                         checksumtypes=(checksum, checksum, checksum),
                                         compression=compression, compression_level=level)
     except RuntimeError as e:
@@ -147,12 +147,12 @@ def main(argv=None):
             p.error("--output is required for --create (use '-' to stream)")
         out_bytes = (args.output == '-')
         if out_bytes:
-            data = N.pack_neo(items, None, formatspecs=formatspecs,
+            data = N.pack_alt(items, None, formatspecs=formatspecs,
                               checksumtypes=(checksum, checksum, checksum),
                               compression=compression, compression_level=level)
             _stdout_bin().write(data)
         else:
-            N.pack_neo(items, args.output, formatspecs=formatspecs,
+            N.pack_alt(items, args.output, formatspecs=formatspecs,
                        checksumtypes=(checksum, checksum, checksum),
                        compression=compression, compression_level=level)
             if args.verbose: sys.stderr.write("created: %s\n" % args.output)
@@ -174,12 +174,12 @@ def main(argv=None):
         if not args.output:
             p.error("--output is required for --repack (use '-' to stream)")
         if args.output == '-':
-            data = N.repack_neo(src, None, formatspecs=formatspecs,
+            data = N.repack_alt(src, None, formatspecs=formatspecs,
                                 checksumtypes=(checksum, checksum, checksum),
                                 compression=compression, compression_level=level)
             _stdout_bin().write(data)
         else:
-            N.repack_neo(src, args.output, formatspecs=formatspecs,
+            N.repack_alt(src, args.output, formatspecs=formatspecs,
                          checksumtypes=(checksum, checksum, checksum),
                          compression=compression, compression_level=level)
             if args.verbose: sys.stderr.write("repacked: %s -> %s\n" % (('<stdin>' if infile0 == '-' else infile0), args.output))
@@ -192,18 +192,18 @@ def main(argv=None):
             pass
         if args.output == '-':
             # stream TAR to stdout
-            arr = N.archive_to_array_neo(src, formatspecs=formatspecs, listonly=False,
+            arr = N.archive_to_array_alt(src, formatspecs=formatspecs, listonly=False,
                                          skipchecksum=args.skipchecksum, uncompress=True)
             _emit_tar_stream_from_array(arr, _stdout_bin())
             return 0
         outdir = args.output or "."
-        N.unpack_neo(src, outdir, formatspecs=formatspecs, skipchecksum=args.skipchecksum, uncompress=True)
+        N.unpack_alt(src, outdir, formatspecs=formatspecs, skipchecksum=args.skipchecksum, uncompress=True)
         if args.verbose: sys.stderr.write("extracted → %s\n" % outdir)
         return 0
 
     if args.list:
         src = _maybe_archive_bytes() or infile0
-        names = N.archivefilelistfiles_neo(src, formatspecs=formatspecs, advanced=args.verbose, include_dirs=True)
+        names = N.archivefilelistfiles_alt(src, formatspecs=formatspecs, advanced=args.verbose, include_dirs=True)
         if not args.verbose:
             for n in names: sys.stdout.write(n + "\n")
         else:
@@ -215,7 +215,7 @@ def main(argv=None):
 
     if args.validate:
         src = _maybe_archive_bytes() or infile0
-        ok, details = N.archivefilevalidate_neo(src, formatspecs=formatspecs, verbose=args.verbose, return_details=True)
+        ok, details = N.archivefilevalidate_alt(src, formatspecs=formatspecs, verbose=args.verbose, return_details=True)
         if not args.verbose:
             sys.stdout.write("valid: %s\n" % ("yes" if ok else "no"))
         else:
