@@ -189,10 +189,10 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
             cands.append(paths)
         else:
             cands.extend(paths)
-    envp = os.environ.get('PYARCHIVE_INI')
+    envp = os.environ.get('PYNEOFILE_INI')
     if envp:
         cands.append(envp)
-    cands.extend(['archivefile.ini', 'catfile.ini', 'foxfile.ini'])
+    cands.extend(['neofile.ini'])
 
     picked = None
     for p in cands:
