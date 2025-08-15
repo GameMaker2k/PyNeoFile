@@ -1,5 +1,5 @@
 [project]
-    name = "PyArchiveFile"
+    name = "PyNeoFile"
     version = "0.19.8"
     readme = "README.md"
     license = { text = "BSD-3-Clause" }
