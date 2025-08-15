@@ -3,44 +3,24 @@
 from __future__ import print_function, unicode_literals, division, absolute_import
 
 """
-Alt archive implementation: pack/unpack/repack/archive_to_array for a simple
-ArchiveFile-compatible format. Python 2/3 compatible. Includes stdlib compression
-(zlib, gzip, bz2) and xz (lzma) when available (Python 3).
+pyneoarc_alt.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
 
-Public API:
-    pack_alt(infiles, outfile, formatspecs=None,
-             checksumtypes=("crc32","crc32","crc32"),
-             encoding="UTF-8",
-             compression="auto",
-             compression_level=None)
-
-    archive_to_array_alt(infile, formatspecs=None,
-                         listonly=False, skipchecksum=False, uncompress=True)
-
-    unpack_alt(infile, outdir=".", formatspecs=None, skipchecksum=False)
-
-    repack_alt(infile, outfile, formatspecs=None,
-               checksumtypes=("crc32","crc32","crc32"),
-               compression="auto",
-               compression_level=None)
-
-This implementation avoids calling any original functions; it writes/reads
-compatible records with the same field ordering rules and checksum semantics:
-- Header and content checksums are computed over the BYTES THAT ARE STORED
-  (i.e., compressed if compression is used).
-- archive_to_array_alt(..., uncompress=True) will transparently decompress
-  when possible for the returned fcontent, but checksums are still validated
-  on the stored bytes before decompression.
+Features:
+- Pack / unpack / repack / archive_to_array
+- Validation and listing helpers (lowercase names)
+- INI-driven format detection (prefers PYNEOFILE_INI / pyneofile.ini)
+- Compression: zlib, gzip, bz2 (stdlib), xz/lzma when available (Py3)
+- Size-based 'auto' compression policy
+- Checksums (header/json/content) using stored bytes (padded CRC-32)
+- Optional converters: ZIP/TAR (stdlib), RAR via rarfile, 7z via py7zr
+- In-memory mode: bytes input, and bytes output when outfile is None/"-"
 """
 
-import os, sys, io, stat, time, json, binascii, hashlib, re
-# INI support (Py2/3)
+import os, sys, io, stat, time, json, binascii, hashlib, re, codecs
 try:
-    import configparser as _cfg
+    from io import open as _iopen
 except Exception:
-    import ConfigParser as _cfg  # Py2
-import codecs
-
+    _iopen = open  # Py2 fallback
 
 # ---------------- Python 2/3 shims ----------------
 try:
@@ -57,6 +37,12 @@ try:
     from io import BytesIO
 except ImportError:
     from cStringIO import StringIO as BytesIO  # Py2 fallback
+
+# INI support (Py2/3)
+try:
+    import configparser as _cfg
+except Exception:
+    import ConfigParser as _cfg  # Py2
 
 # --------------- Compression shim (stdlib only) ---------------
 import zlib, bz2, gzip
@@ -148,72 +134,131 @@ def _auto_pick_for_size(size_bytes):
         return ('bz2', 9)
     return ('zlib', 6)
 
-# ---------------- Format helpers ----------------
+# -----------------------------------------------------------------------------
+# In-memory I/O helpers
+# -----------------------------------------------------------------------------
 
-def _ver_digits(verstr):
-    """Keep numeric digits only, preserving leading zeros from INI like '001'.
-    For dotted versions like '0.0.1', returns '001'.
+def _wrap_infile(infile):
+    """Return (fp, close_me). Accepts path, file-like, or bytes/bytearray."""
+    if isinstance(infile, (bytes, bytearray, memoryview)):
+        return BytesIO(bytes(infile)), True
+    if hasattr(infile, 'read'):
+        return infile, False
+    return _iopen(infile, 'rb'), True
+
+def _wrap_outfile(outfile):
+    """Return (fp, close_me, to_bytes). If outfile is None or '-', buffer to bytes."""
+    if outfile in (None, '-', b'-'):
+        bio = BytesIO()
+        return bio, False, True
+    if hasattr(outfile, 'write'):
+        return outfile, False, False
+    return _iopen(outfile, 'wb'), True, False
+
+def _normalize_pack_inputs(infiles):
+    """Normalize in-memory inputs into items for pack_iter_alt.
+    Supported forms:
+      - dict {name: bytes_or_None} (None => directory if name endswith('/'))
+      - list/tuple of (name, bytes) or (name, is_dir, bytes_or_None) or dicts
+      - single bytes/bytearray => [('memory.bin', False, bytes)]
+      - anything else => None (caller will do filesystem walk)
     """
+    if isinstance(infiles, dict):
+        items = []
+        for k, v in infiles.items():
+            name = str(k)
+            is_dir = bool(v is None or name.endswith('/'))
+            items.append({'name': name, 'is_dir': is_dir,
+                          'data': (None if is_dir else (bytes(v) if v is not None else b''))})
+        return items
+    if isinstance(infiles, (bytes, bytearray, memoryview)):
+        return [{'name': 'memory.bin', 'is_dir': False, 'data': bytes(infiles)}]
+    if isinstance(infiles, (list, tuple)) and infiles:
+        def _as_item(x):
+            if isinstance(x, dict):
+                return x
+            if isinstance(x, (list, tuple)):
+                if len(x) == 2:
+                    n, b = x
+                    return {'name': n, 'is_dir': False, 'data': (bytes(b) if b is not None else b'')}
+                if len(x) >= 3:
+                    n, is_dir, b = x[0], bool(x[1]), x[2]
+                    return {'name': n, 'is_dir': is_dir,
+                            'data': (None if is_dir else (bytes(b) if b is not None else b''))}
+            return None
+        items = []
+        for it in infiles:
+            conv = _as_item(it)
+            if conv is None:
+                return None
+            items.append(conv)
+        return items
+    return None
+
+# ---------------- Format helpers ----------------
+def _ver_digits(verstr):
+    """Keep numeric digits only; preserve '001' style."""
     if not verstr:
         return '001'
     digits = ''.join([c for c in unicode(verstr) if c.isdigit()])
     return digits or '001'
 
-# Cache loaded INI formatspecs so we only parse once
+def _default_formatspecs():
+    return {
+        'format_magic': 'ArchiveFile',
+        'format_ver': '001',
+        'format_delimiter': '\x00',
+        'new_style': True,
+    }
+
 __formatspecs_ini_cache__ = None
 
 def _decode_delim_escape(s):
-    # Convert INI escape forms like "\x00" into the real char
     try:
         return codecs.decode(s, 'unicode_escape')
     except Exception:
-        # Best effort fallback
         return s
 
 def _load_formatspecs_from_ini(paths=None, prefer_section=None):
-    """Load format definition from an INI file.
-    Returns a dict compatible with our formatspecs or None if not found.
-    Selection order:
-      1) explicit 'paths' list (first that exists)
-      2) env var PYARCHIVE_INI
-      3) local files: ./archivefile.ini, ./catfile.ini, ./foxfile.ini
-    Section choice:
-      - prefer_section if given
-      - [config] default=... if present
-      - otherwise the first non-[config] section
     """
-    # Resolve candidate paths
+    Load format definition from an INI file.
+    Search order:
+      - explicit 'paths'
+      - env PYNEOFILE_INI, then PYARCHIVE_INI
+      - ./pyneofile.ini, ./archivefile.ini, ./catfile.ini, ./foxfile.ini
+    Section selection:
+      - prefer_section
+      - [config] default=... if present
+      - first non-[config] section
+    """
     cands = []
     if paths:
         if isinstance(paths, basestring):
             cands.append(paths)
         else:
             cands.extend(paths)
-    envp = os.environ.get('PYNEOFILE_INI')
+    envp = os.environ.get('PYNEOFILE_INI') or os.environ.get('PYARCHIVE_INI')
     if envp:
         cands.append(envp)
-    cands.extend(['neofile.ini'])
+    cands.extend(['pyneofile.ini', 'archivefile.ini', 'catfile.ini', 'foxfile.ini'])
 
     picked = None
     for p in cands:
         if os.path.isfile(p):
-            picked = p
-            break
+            picked = p; break
     if not picked:
         return None
 
-    # Read with Raw/No interpolation
     try:
         cp = _cfg.ConfigParser() if hasattr(_cfg, 'ConfigParser') else _cfg.RawConfigParser()
         if hasattr(cp, 'read_file'):
-            with open(picked, 'r') as fh:
+            with _iopen(picked, 'r') as fh:
                 cp.read_file(fh)
         else:
             cp.read(picked)
     except Exception:
         return None
 
-    # Which section?
     sec = None
     if prefer_section and cp.has_section(prefer_section):
         sec = prefer_section
@@ -229,8 +274,7 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
         else:
             for name in cp.sections():
                 if name.lower() != 'config':
-                    sec = name
-                    break
+                    sec = name; break
     if not sec:
         return None
 
@@ -242,32 +286,22 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
 
     magic = _get('magic', 'ArchiveFile')
     ver   = _get('ver', '001')
-    delim = _get('delimiter', '\x00')
+    delim = _get('delimiter', '\\x00')
     newst = _get('newstyle', 'true')
     ext   = _get('extension', '.arc')
 
-    # Normalize delimiter and version
     delim_real = _decode_delim_escape(delim)
     ver_digits = _ver_digits(ver)
 
-    # Build spec dict
     spec = {
         'format_magic': magic,
-        'format_ver': ver_digits,            # already digits
+        'format_ver': ver_digits,
         'format_delimiter': delim_real,
         'new_style': (str(newst).lower() in ('1','true','yes','on')),
         'format_name': sec,
         'extension': ext,
     }
     return spec
-
-def _default_formatspecs():
-    return {
-        'format_magic': 'ArchiveFile',
-        'format_ver': '0.0.1',        # becomes digits e.g. "001"
-        'format_delimiter': '\x00',   # NUL-like
-        'new_style': True,
-    }
 
 def _ensure_formatspecs(specs):
     global __formatspecs_ini_cache__
@@ -350,10 +384,8 @@ def _write_global_header(fp, numfiles, encoding, checksumtype, extradata, format
     platform_name = os.name if os.name in ('nt', 'posix') else sys.platform
     fnumfiles_hex = _hex(int(numfiles))
 
-    # count of fields between tmpoutlenhex and header checksum (inclusive of checksumtype)
-    # We will build body and compute header checksum after prepending headersize.
     tmpoutlist = [encoding, platform_name, fnumfiles_hex, extras_size_hex, extrafields]
-    tmpoutlen = 3 + len(tmpoutlist) + len(extradata) + 1  # 3? kept for compatibility logic
+    tmpoutlen = 3 + len(tmpoutlist) + len(extradata) + 1  # compatibility
     tmpoutlen_hex = _hex(tmpoutlen)
 
     body = _append_nulls([tmpoutlen_hex, encoding, platform_name, fnumfiles_hex, extras_size_hex, extrafields], delim)
@@ -362,7 +394,6 @@ def _write_global_header(fp, numfiles, encoding, checksumtype, extradata, format
     body += _append_null(checksumtype, delim)
 
     prefix = _append_null(magic + ver_digits, delim)
-    # headersize = len(body plus placeholder) - len(delim)
     tmpfileoutstr = body + _append_null('', delim)
     headersize_hex = _hex(len(tmpfileoutstr) - len(_to_bytes(delim)))
     out = prefix + _append_null(headersize_hex, delim) + body
@@ -439,38 +470,31 @@ def _build_file_header_bytes(filemeta, jsondata, content_bytes_stored, checksumt
         extras_blob += _append_nulls(extradata, delim)
     extras_size_hex = _hex(len(extras_blob))
 
-    # Build header fields list that will be counted
     rec_fields = []
     rec_fields.extend(fields)
     rec_fields.extend([fjsontype, fjsonlen_hex, fjsonsize_hex, json_cs_type, fjsoncs])
     rec_fields.extend([extras_size_hex, extrafields])
     if extradata:
         rec_fields.extend(extradata)
-    # checksum type names
+
     header_cs_type  = checksumtypes[0]
     content_cs_type = checksumtypes[1] if len(content_bytes_stored) > 0 else 'none'
     rec_fields.extend([header_cs_type, content_cs_type])
 
-    # Now compute count & assemble header sequence that INCLUDES checksum VALUES at the end
-    record_fields_len_hex = _hex(len(rec_fields) + 2)  # +2 for the two checksum *values*
+    record_fields_len_hex = _hex(len(rec_fields) + 2)  # include two checksum VALUE fields
     header_no_cs = _append_nulls(rec_fields, delim)
 
-    # Prepend headersize and field-count (these two are NOT included in the count itself)
-    # headersize is computed over (fieldcount + rec_fields + checksum values)
     tmp_with_placeholders = _append_null(record_fields_len_hex, delim) + header_no_cs
-    # add placeholders for the two checksum values to compute headersize text checksum
     tmp_with_placeholders += _append_null('', delim) + _append_null('', delim)
-    headersize_hex = _hex(len(tmp_with_placeholders) - len(_to_bytes(delim)))  # following original style
+    headersize_hex = _hex(len(tmp_with_placeholders) - len(_to_bytes(delim)))
 
     header_with_sizes = _append_null(headersize_hex, delim) + _append_null(record_fields_len_hex, delim) + header_no_cs
 
-    # Now compute the actual header checksum over (magic/ver handled at global; here just over header fields)
     header_checksum = _checksum(header_with_sizes, header_cs_type, text=True)
     content_checksum = _checksum(content_bytes_stored, content_cs_type, text=False)
 
     header_full = header_with_sizes + _append_nulls([header_checksum, content_checksum], delim)
 
-    # Append JSON, delim, content, delim
     out = header_full + raw_json + _to_bytes(delim) + content_bytes_stored + _to_bytes(delim)
     return out
 
@@ -478,7 +502,6 @@ def _build_file_header_bytes(filemeta, jsondata, content_bytes_stored, checksumt
 def _read_cstring(fp, delim):
     d = _to_bytes(delim)
     out = []
-    # Simple byte-by-byte scanner (works on Py2/3)
     while True:
         b = fp.read(1)
         if not b:
@@ -497,9 +520,9 @@ def _read_fields(fp, n, delim):
 def _parse_global_header(fp, formatspecs, skipchecksum=False):
     delim = formatspecs['format_delimiter']
     magicver = _read_cstring(fp, delim).decode('UTF-8')
-    _ = _read_cstring(fp, delim)  # headersize_hex (not currently used)
+    _ = _read_cstring(fp, delim)  # headersize_hex
 
-    tmpoutlenhex = _read_cstring(fp, delim).decode('UTF-8')  # field count (unused here)
+    tmpoutlenhex = _read_cstring(fp, delim).decode('UTF-8')
     fencoding = _read_cstring(fp, delim).decode('UTF-8')
     fostype = _read_cstring(fp, delim).decode('UTF-8')
     fnumfiles = int(_read_cstring(fp, delim).decode('UTF-8') or '0', 16)
@@ -509,23 +532,77 @@ def _parse_global_header(fp, formatspecs, skipchecksum=False):
     for _i in range(extrafields):
         extras.append(_read_cstring(fp, delim).decode('UTF-8'))
     checksumtype = _read_cstring(fp, delim).decode('UTF-8')
-    _header_cs = _read_cstring(fp, delim).decode('UTF-8')  # global header checksum
+    _header_cs = _read_cstring(fp, delim).decode('UTF-8')
     return {'fencoding': fencoding, 'fnumfiles': fnumfiles, 'fostype': fostype,
             'fextradata': extras, 'fchecksumtype': checksumtype,
             'ffilelist': [], 'fformatspecs': formatspecs}
+
+def _index_json_and_checks(vals):
+    """Index JSON meta and checksum positions for a header field list `vals`."""
+    def _is_hex(s):
+        return bool(s) and all(c in '0123456789abcdefABCDEF' for c in s)
+
+    if len(vals) < 25:
+        raise ValueError("Record too short to index JSON/checksum meta; got %d fields" % len(vals))
+
+    idx = 25
+    fjsontype = vals[idx]; idx += 1
+
+    v2 = vals[idx]     if idx < len(vals) else ''
+    v3 = vals[idx + 1] if idx + 1 < len(vals) else ''
+    v4 = vals[idx + 2] if idx + 2 < len(vals) else ''
+
+    cs_candidates = set(['none','crc32','md5','sha1','sha224','sha256','sha384','sha512','blake2b','blake2s'])
+
+    if _is_hex(v2) and _is_hex(v3) and v4.lower() in cs_candidates:
+        idx_json_type = idx - 1
+        idx_json_len  = idx
+        idx_json_size = idx + 1
+        idx_json_cst  = idx + 2
+        idx_json_cs   = idx + 3
+        idx += 4
+    else:
+        idx_json_type = idx - 1
+        idx_json_len  = None
+        idx_json_size = idx
+        idx_json_cst  = idx + 1
+        idx_json_cs   = idx + 2
+        idx += 3
+
+    if idx + 2 > len(vals):
+        raise ValueError("Missing extras header fields")
+
+    idx_extras_size  = idx
+    idx_extras_count = idx + 1
+    try:
+        count_int = int(vals[idx_extras_count] or '0', 16)
+    except Exception:
+        raise ValueError("Extras count not hex; got %r" % vals[idx_extras_count])
+    idx = idx + 2 + count_int
+
+    if idx + 4 > len(vals):
+        raise ValueError("Missing checksum types/values in header")
+
+    idx_header_cs_type   = idx
+    idx_content_cs_type  = idx + 1
+    idx_header_cs        = idx + 2
+    idx_content_cs       = idx + 3
+
+    return {
+        'json': (idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs),
+        'cstypes': (idx_header_cs_type, idx_content_cs_type),
+        'csvals': (idx_header_cs, idx_content_cs),
+    }
 
 def _parse_record(fp, formatspecs, listonly=False, skipchecksum=False, uncompress=True):
     delim = formatspecs['format_delimiter']
     dbytes = _to_bytes(delim)
 
-    # Peek: end marker?
-    pos = fp.tell()
     first = _read_cstring(fp, delim)
     if first == b'0':
         second = _read_cstring(fp, delim)
         if second == b'0':
             return None
-        # Not end; treat them as real header fields
         headersize_hex = first.decode('UTF-8')
         fields_len_hex = second.decode('UTF-8')
     else:
@@ -548,72 +625,21 @@ def _parse_record(fp, formatspecs, listonly=False, skipchecksum=False, uncompres
      flinkcount_hex, fdev_hex, fdev_minor_hex, fdev_major_hex,
      fseeknextfile) = vals[:25]
 
-    idx = 25
+    idx = _index_json_and_checks(vals)
+    (idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs) = idx['json']
+    (idx_header_cs_type, idx_content_cs_type) = idx['cstypes']
+    (idx_header_cs, idx_content_cs) = idx['csvals']
 
-    def _is_hex(s):
-        return bool(s) and all(c in '0123456789abcdefABCDEF' for c in s)
-
-    if idx >= len(vals):
-        raise ValueError("Missing JSON meta block")
-    fjsontype = vals[idx]; idx += 1
-
-    v2 = vals[idx]     if idx < len(vals) else ''
-    v3 = vals[idx + 1] if idx + 1 < len(vals) else ''
-    v4 = vals[idx + 2] if idx + 2 < len(vals) else ''
-
-    cs_candidates = set(['none','crc32','md5','sha1','sha224','sha256','sha384','sha512','blake2b','blake2s'])
-
-    if _is_hex(v2) and _is_hex(v3) and v4.lower() in cs_candidates:
-        fjsonlen_hex  = v2
-        fjsonsize_hex = v3
-        fjsoncs_type  = v4
-        fjsoncs       = vals[idx + 3] if idx + 3 < len(vals) else '0'
-        idx += 4
-    else:
-        fjsonlen_hex  = '0'
-        fjsonsize_hex = v2
-        fjsoncs_type  = v3
-        fjsoncs       = v4
-        idx += 3
-
-    if idx + 2 > len(vals):
-        raise ValueError("Missing extras header fields")
-    extras_size_hex = vals[idx] or '0'; idx += 1
-    extrafields_hex = vals[idx] or '0'; idx += 1
-
+    fjsonsize_hex = vals[idx_json_size] or '0'
     try:
-        extrafields = int(extrafields_hex, 16)
-    except ValueError:
-        raise ValueError("Extras count not hex (misaligned header); got %r" % extrafields_hex)
-
-    extras = []
-    for _i in range(extrafields):
-        if idx >= len(vals):
-            raise ValueError("Extras truncated; expected %d fields" % extrafields)
-        extras.append(vals[idx]); idx += 1
-
-    # checksum types + values are INCLUDED in n_fields
-    if idx + 4 > len(vals):
-        raise ValueError("Missing checksum types/values in header")
-    header_cs_type  = vals[idx]; idx += 1
-    content_cs_type = vals[idx]; idx += 1
-    header_cs       = vals[idx]; idx += 1
-    content_cs      = vals[idx]; idx += 1
-
-    # JSON blob + delim
-    try:
-        fjsonsize = int(fjsonsize_hex or '0', 16)
+        fjsonsize = int(fjsonsize_hex, 16)
     except Exception:
         raise ValueError("Bad JSON size hex: %r" % fjsonsize_hex)
 
     json_bytes = fp.read(fjsonsize)
     fp.read(len(dbytes))
 
-    if fjsonsize and not skipchecksum:
-        if _checksum(json_bytes, fjsoncs_type, text=True) != fjsoncs:
-            raise ValueError("JSON checksum mismatch for %s" % fname)
-
-    # Content + delim (stored bytes)
+    # Read content (stored bytes)
     fsize  = int(fsize_hex, 16)
     fcsize = int(fcsize_hex, 16)
     read_size = fcsize if (fcompression not in ('', 'none', 'auto') and fcsize > 0) else fsize
@@ -626,18 +652,28 @@ def _parse_record(fp, formatspecs, listonly=False, skipchecksum=False, uncompres
             content_stored = fp.read(read_size)
     fp.read(len(dbytes))
 
-    # Verify checksum on STORED bytes
+    # Verify checksums (header json/content)
+    header_cs_type  = vals[idx_header_cs_type]
+    content_cs_type = vals[idx_content_cs_type]
+    header_cs_val   = vals[idx_header_cs]
+    content_cs_val  = vals[idx_content_cs]
+    json_cs_type    = vals[idx_json_cst]
+    json_cs_val     = vals[idx_json_cs]
+
+    if fjsonsize and not skipchecksum:
+        if _checksum(json_bytes, json_cs_type, text=True) != json_cs_val:
+            raise ValueError("JSON checksum mismatch for %s" % fname)
+
     if not skipchecksum and read_size and not listonly:
-        if _checksum(content_stored, content_cs_type, text=False) != content_cs:
+        if _checksum(content_stored, content_cs_type, text=False) != content_cs_val:
             raise ValueError("Content checksum mismatch for %s" % fname)
 
-    # Prepare returned content (optionally decompressed)
+    # Optionally decompress for returned content
     content_ret = content_stored
     if not listonly and uncompress and fcompression not in ('', 'none', 'auto'):
         try:
             content_ret = _decompress_bytes(content_stored, fcompression)
         except RuntimeError:
-            # Keep stored bytes if codec not available
             content_ret = content_stored
 
     if not re.match(r'^[\./]', fname):
@@ -668,14 +704,21 @@ def _parse_record(fp, formatspecs, listonly=False, skipchecksum=False, uncompres
     }
 
 # ---------------- Public API ----------------
-def pack_alt(infiles, outfile, formatspecs=None,
+def pack_alt(infiles, outfile=None, formatspecs=None,
              checksumtypes=("crc32","crc32","crc32"),
              encoding="UTF-8",
              compression="auto",
              compression_level=None):
-    """Pack files/dirs to an archive file."""
+    """Pack files/dirs to an archive file or return bytes when outfile is None/'-'."""
     fs = _ensure_formatspecs(formatspecs)
     delim = fs['format_delimiter']
+
+    # In-memory sources?
+    items = _normalize_pack_inputs(infiles)
+    if items is not None:
+        return pack_iter_alt(items, outfile, formatspecs=fs,
+                             checksumtypes=checksumtypes, encoding=encoding,
+                             compression=compression, compression_level=compression_level)
 
     if isinstance(infiles, basestring):
         paths = [infiles]
@@ -690,10 +733,6 @@ def pack_alt(infiles, outfile, formatspecs=None,
     for p in paths:
         if os.path.isdir(p):
             for root, dirs, files in os.walk(p):
-                # Emit directory entry itself
-                rel = os.path.relpath(root, start=(base_dir or os.path.dirname(p)))
-                if rel == '.':
-                    rel = os.path.basename(root)
                 filelist.append((os.path.join(root, ''), True))
                 for name in files:
                     filelist.append((os.path.join(root, name), False))
@@ -701,12 +740,7 @@ def pack_alt(infiles, outfile, formatspecs=None,
             filelist.append((p, False))
 
     # open destination
-    close_me = False
-    if hasattr(outfile, 'write'):
-        fp = outfile
-    else:
-        fp = open(outfile, 'wb')
-        close_me = True
+    fp, close_me, to_bytes = _wrap_outfile(outfile)
 
     try:
         _write_global_header(fp, len(filelist), encoding, checksumtypes[0], extradata=[], formatspecs=fs)
@@ -719,7 +753,7 @@ def pack_alt(infiles, outfile, formatspecs=None,
                 raw = b''
                 ftype = 5
             else:
-                with open(apath, 'rb') as f:
+                with _iopen(apath, 'rb') as f:
                     raw = f.read()
                 ftype = 0
 
@@ -771,6 +805,8 @@ def pack_alt(infiles, outfile, formatspecs=None,
 
         # end marker
         fp.write(_append_nulls(['0','0'], fs['format_delimiter']))
+        if to_bytes:
+            return fp.getvalue()
     finally:
         if close_me:
             fp.close()
@@ -778,12 +814,7 @@ def pack_alt(infiles, outfile, formatspecs=None,
 def archive_to_array_alt(infile, formatspecs=None,
                          listonly=False, skipchecksum=False, uncompress=True):
     fs = _ensure_formatspecs(formatspecs)
-    close_me = False
-    if hasattr(infile, 'read'):
-        fp = infile
-    else:
-        fp = open(infile, 'rb')
-        close_me = True
+    fp, close_me = _wrap_infile(infile)
     try:
         top = _parse_global_header(fp, fs, skipchecksum=skipchecksum)
         while True:
@@ -800,6 +831,17 @@ def unpack_alt(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompr
     arr = archive_to_array_alt(infile, formatspecs=formatspecs, listonly=False, skipchecksum=skipchecksum, uncompress=uncompress)
     if not arr:
         return False
+
+    # In-memory extraction
+    if outdir in (None, '-', b'-'):
+        result = {}
+        for ent in arr['ffilelist']:
+            if ent['ftype'] == 5:
+                result[ent['fname']] = None
+            else:
+                result[ent['fname']] = ent.get('fcontent') or b''
+        return result
+
     if not os.path.isdir(outdir):
         if os.path.exists(outdir):
             raise IOError("not a directory: %r" % outdir)
@@ -813,7 +855,7 @@ def unpack_alt(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompr
         d = os.path.dirname(path)
         if d and not os.path.isdir(d):
             os.makedirs(d)
-        with open(path, 'wb') as f:
+        with _iopen(path, 'wb') as f:
             f.write(ent.get('fcontent') or b'')
         try:
             os.chmod(path, ent.get('fmode', 0o666))
@@ -821,18 +863,13 @@ def unpack_alt(infile, outdir='.', formatspecs=None, skipchecksum=False, uncompr
             pass
     return True
 
-def repack_alt(infile, outfile, formatspecs=None,
+def repack_alt(infile, outfile=None, formatspecs=None,
                checksumtypes=("crc32","crc32","crc32"),
                compression="auto",
                compression_level=None):
     arr = archive_to_array_alt(infile, formatspecs=formatspecs, listonly=False, skipchecksum=False, uncompress=False)
     fs = _ensure_formatspecs(formatspecs)
-    close_me = False
-    if hasattr(outfile, 'write'):
-        fp = outfile
-    else:
-        fp = open(outfile, 'wb')
-        close_me = True
+    fp, close_me, to_bytes = _wrap_outfile(outfile)
     try:
         _write_global_header(fp, len(arr['ffilelist']), arr.get('fencoding', 'UTF-8'), checksumtypes[0],
                              extradata=arr.get('fextradata', []), formatspecs=fs)
@@ -842,26 +879,22 @@ def repack_alt(infile, outfile, formatspecs=None,
 
             stored_src = ent.get('fcontent') or b''  # we requested uncompress=False, so this is stored bytes
 
-            # Determine target algorithm
             if dst_algo == 'auto':
-                # need raw size; decompress if needed
                 try:
                     raw = _decompress_bytes(stored_src, src_algo) if src_algo != 'none' else stored_src
                 except RuntimeError:
-                    raw = stored_src  # keep as-is if codec unavailable
+                    raw = stored_src
                 dst_algo, dst_level = _auto_pick_for_size(len(raw))
             else:
-                # explicit choice
                 if src_algo != 'none':
                     try:
                         raw = _decompress_bytes(stored_src, src_algo)
                     except RuntimeError:
-                        raw = stored_src  # best effort
+                        raw = stored_src
                 else:
                     raw = stored_src
                 dst_level = compression_level
 
-            # Copy-through if already matching
             if dst_algo == src_algo or (dst_algo == 'none' and src_algo == 'none'):
                 stored_bytes = stored_src
                 used_algo = src_algo
@@ -904,89 +937,21 @@ def repack_alt(infile, outfile, formatspecs=None,
                                            checksumtypes=checksumtypes, extradata=[], formatspecs=fs)
             fp.write(rec)
         fp.write(_append_nulls(['0','0'], fs['format_delimiter']))
+        if to_bytes:
+            return fp.getvalue()
     finally:
         if close_me:
             fp.close()
 
 # -----------------------------------------------------------------------------
-# Alt validation and listing helpers
+# Alt validation and listing helpers (lowercase names for consistency)
 # -----------------------------------------------------------------------------
 
-def _index_json_and_checks(vals):
-    """Given the counted header field list `vals`, return indices and parsed
-    JSON meta and checksum info. Works with both 4-field and 5-field JSON layouts.
-    Returns a dict with keys:
-      json: (idx_type, idx_len, idx_size, idx_cs_type, idx_cs)  # idx_len may be None for 4-field
-      extras: (idx_size, idx_count, count_int, next_idx)
-      cstypes: (idx_header_cs_type, idx_content_cs_type)
-      csvals:  (idx_header_cs, idx_content_cs)
-    """
-    def _is_hex(s):
-        return bool(s) and all(c in '0123456789abcdefABCDEF' for c in s)
-
-    if len(vals) < 25:
-        raise ValueError("Record too short to index JSON/checksum meta; got %d fields" % len(vals))
-
-    idx = 25
-    fjsontype = vals[idx]; idx += 1
-
-    v2 = vals[idx]     if idx < len(vals) else ''
-    v3 = vals[idx + 1] if idx + 1 < len(vals) else ''
-    v4 = vals[idx + 2] if idx + 2 < len(vals) else ''
-
-    # JSON meta block
-    if _is_hex(v2) and _is_hex(v3) and v4.lower() in set(['none','crc32','md5','sha1','sha224','sha256','sha384','sha512','blake2b','blake2s']):
-        # 5-field
-        idx_json_type = idx - 1
-        idx_json_len  = idx
-        idx_json_size = idx + 1
-        idx_json_cst  = idx + 2
-        idx_json_cs   = idx + 3
-        idx = idx + 4
-    else:
-        # 4-field (no len)
-        idx_json_type = idx - 1
-        idx_json_len  = None
-        idx_json_size = idx
-        idx_json_cst  = idx + 1
-        idx_json_cs   = idx + 2
-        idx = idx + 3
-
-    if idx + 2 > len(vals):
-        raise ValueError("Missing extras header fields")
-
-    idx_extras_size  = idx
-    idx_extras_count = idx + 1
-    try:
-        count_int = int(vals[idx_extras_count] or '0', 16)
-    except Exception:
-        raise ValueError("Extras count not hex; got %r" % vals[idx_extras_count])
-    idx = idx + 2 + count_int  # skip extras
-
-    if idx + 4 > len(vals):
-        raise ValueError("Missing checksum types/values in header")
-
-    idx_header_cs_type   = idx
-    idx_content_cs_type  = idx + 1
-    idx_header_cs        = idx + 2
-    idx_content_cs       = idx + 3
-
-    return {
-        'json': (idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs),
-        'extras': (idx_extras_size, idx_extras_count, count_int, idx + 4),
-        'cstypes': (idx_header_cs_type, idx_content_cs_type),
-        'csvals': (idx_header_cs, idx_content_cs),
-    }
-
 def _read_record_raw(fp, formatspecs):
-    """Low-level read of a single record returning the raw counted header fields
-    and the stored JSON and content bytes. Returns None on end-of-archive.
-    """
+    """Low-level read of a single record returning header fields and stored blobs."""
     delim = formatspecs['format_delimiter']
     dbytes = _to_bytes(delim)
 
-    # End marker check
-    pos = fp.tell()
     first = _read_cstring(fp, delim)
     if first == b'0':
         second = _read_cstring(fp, delim)
@@ -1004,12 +969,9 @@ def _read_record_raw(fp, formatspecs):
         raise ValueError("Bad record field-count hex: %r" % fields_len_hex)
 
     vals = _read_fields(fp, n_fields, delim)
-
-    # Index positions to know sizes and where checksums are
     idxs = _index_json_and_checks(vals)
+    (idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs) = idxs['json']
 
-    # JSON blob
-    idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs = idxs['json']
     fjsonsize_hex = vals[idx_json_size] or '0'
     try:
         fjsonsize = int(fjsonsize_hex, 16)
@@ -1017,107 +979,28 @@ def _read_record_raw(fp, formatspecs):
         raise ValueError("Bad JSON size hex: %r" % fjsonsize_hex)
 
     json_bytes = fp.read(fjsonsize)
-    fp.read(len(dbytes))  # trailing delimiter after JSON
+    fp.read(len(dbytes))
 
-    # Content size (stored)
     fcompression = vals[12]
     fsize_hex = vals[5]
     fcsize_hex = vals[13]
-    try:
-        fsize  = int(fsize_hex, 16)
-        fcsize = int(fcsize_hex, 16)
-    except Exception:
-        raise ValueError("Bad content size hexes: fsize=%r fcsize=%r" % (fsize_hex, fcsize_hex))
-
+    fsize  = int(fsize_hex, 16)
+    fcsize = int(fcsize_hex, 16)
     read_size = fcsize if (fcompression not in ('', 'none', 'auto') and fcsize > 0) else fsize
     content_stored = b''
     if read_size:
         content_stored = fp.read(read_size)
-    fp.read(len(dbytes))  # trailing delimiter after content
+    fp.read(len(dbytes))
 
     return headersize_hex, fields_len_hex, vals, json_bytes, content_stored
 
-
-    """List entries in an archive without extracting.
-    - advanced=False: returns a list of path strings
-    - advanced=True: returns a list of dicts with metadata (name, type, compression, sizes, times)
-    """
-    fs = _ensure_formatspecs(formatspecs)
-    out = []
-
-    close_me = False
-    if hasattr(infile, 'read'):
-        fp = infile
-    else:
-        fp = open(infile, 'rb')
-        close_me = True
-    try:
-        _ = _parse_global_header(fp, fs, skipchecksum=True)
-        while True:
-            # read raw header only; do not read content body to keep it fast
-            pos = fp.tell()
-            raw = _read_record_raw(fp, fs)
-            if raw is None:
-                break
-            headersize_hex, fields_len_hex, vals, json_bytes, content_stored = raw
-
-            # Fixed fields
-            ftypehex = vals[0]
-            fname = vals[3]
-            fcompression = vals[12]
-            fsize_hex = vals[5]
-            fcsize_hex = vals[13]
-            fatime_hex = vals[6]
-            fmtime_hex = vals[7]
-            fmode_hex  = vals[10]
-
-            ftype = int(ftypehex, 16)
-            is_dir = (ftype == 5)
-
-            if not include_dirs and is_dir:
-                continue
-
-            if not re.match(r'^[\./]', fname):
-                fname = './' + fname
-
-            if not advanced:
-                out.append(fname)
-            else:
-                out.append({
-                    'name': fname,
-                    'type': 'dir' if is_dir else 'file',
-                    'compression': fcompression or 'none',
-                    'size': int(fsize_hex, 16),
-                    'stored_size': int(fcsize_hex, 16),
-                    'mtime': int(fmtime_hex, 16),
-                    'atime': int(fatime_hex, 16),
-                    'mode': int(fmode_hex, 16),
-                })
-    finally:
-        if close_me:
-            fp.close()
-    return out
-
-
-# -----------------------------------------------------------------------------
-# Alt validation and listing helpers (lowercase names for consistency)
-# -----------------------------------------------------------------------------
-
 def archivefilevalidate_alt(infile, formatspecs=None, verbose=False, return_details=False):
-    """Validate an ArchiveFile using the alt parser.
-    - Verifies JSON checksum (when present), header checksum, and content checksum.
-    - Returns True/False (and optionally a list of per-entry results when return_details=True).
-    """
+    """Validate an ArchiveFile using the alt parser."""
     fs = _ensure_formatspecs(formatspecs)
     details = []
     ok_all = True
 
-    close_me = False
-    if hasattr(infile, 'read'):
-        fp = infile
-    else:
-        fp = open(infile, 'rb')
-        close_me = True
+    fp, close_me = _wrap_infile(infile)
     try:
         _ = _parse_global_header(fp, fs, skipchecksum=False)
         idx = 0
@@ -1181,22 +1064,13 @@ def archivefilevalidate_alt(infile, formatspecs=None, verbose=False, return_deta
     if return_details:
         return ok_all, details
     return ok_all
-
 
 def archivefilelistfiles_alt(infile, formatspecs=None, advanced=False, include_dirs=True):
-    """List entries in an archive without extracting.
-    - advanced=False: returns a list of path strings
-    - advanced=True: returns a list of dicts with metadata
-    """
+    """List entries in an archive without extracting."""
     fs = _ensure_formatspecs(formatspecs)
     out = []
 
-    close_me = False
-    if hasattr(infile, 'read'):
-        fp = infile
-    else:
-        fp = open(infile, 'rb')
-        close_me = True
+    fp, close_me = _wrap_infile(infile)
     try:
         _ = _parse_global_header(fp, fs, skipchecksum=True)
         while True:
@@ -1241,100 +1115,12 @@ def archivefilelistfiles_alt(infile, formatspecs=None, advanced=False, include_d
             fp.close()
     return out
 
-
-# -----------------------------------------------------------------------------
-# Alt validation and listing helpers (lowercase names for consistency)
-# -----------------------------------------------------------------------------
-
-def archivefilevalidate_alt(infile, formatspecs=None, verbose=False, return_details=False):
-    """Validate an ArchiveFile using the alt parser.
-    - Verifies JSON checksum (when present), header checksum, and content checksum.
-    - Returns True/False (and optionally a list of per-entry results when return_details=True).
-    """
-    fs = _ensure_formatspecs(formatspecs)
-    details = []
-    ok_all = True
-
-    close_me = False
-    if hasattr(infile, 'read'):
-        fp = infile
-    else:
-        fp = open(infile, 'rb')
-        close_me = True
-    try:
-        _ = _parse_global_header(fp, fs, skipchecksum=False)
-        idx = 0
-        while True:
-            raw = _read_record_raw(fp, fs)
-            if raw is None:
-                break
-            headersize_hex, fields_len_hex, vals, json_bytes, content_stored = raw
-
-            idxs = _index_json_and_checks(vals)
-            (idx_json_type, idx_json_len, idx_json_size, idx_json_cst, idx_json_cs) = idxs['json']
-            (idx_header_cs_type, idx_content_cs_type) = idxs['cstypes']
-            (idx_header_cs, idx_content_cs) = idxs['csvals']
-
-            fname = vals[3]
-            header_cs_type  = vals[idx_header_cs_type]
-            content_cs_type = vals[idx_content_cs_type]
-            header_cs_val   = vals[idx_header_cs]
-            content_cs_val  = vals[idx_content_cs]
-            json_cs_type    = vals[idx_json_cst]
-            json_cs_val     = vals[idx_json_cs]
-
-            delim = fs['format_delimiter']
-            header_bytes = _append_null(headersize_hex, delim) + _append_null(fields_len_hex, delim) + _append_nulls(vals[:-2], delim)
-            computed_hcs = _checksum(header_bytes, header_cs_type, text=True)
-            h_ok = (computed_hcs == header_cs_val)
-
-            j_ok = True
-            try:
-                fjsonsize_hex = vals[idx_json_size] or '0'
-                fjsonsize = int(fjsonsize_hex, 16) if fjsonsize_hex else 0
-            except Exception:
-                fjsonsize = 0
-            if fjsonsize:
-                computed_jcs = _checksum(json_bytes, json_cs_type, text=True)
-                j_ok = (computed_jcs == json_cs_val)
-
-            c_ok = True
-            if content_stored:
-                computed_ccs = _checksum(content_stored, content_cs_type, text=False)
-                c_ok = (computed_ccs == content_cs_val)
-
-            entry_ok = h_ok and j_ok and c_ok
-            ok_all = ok_all and entry_ok
-            if verbose or return_details:
-                details.append({
-                    'index': idx,
-                    'name': fname,
-                    'header_ok': h_ok,
-                    'json_ok': j_ok,
-                    'content_ok': c_ok,
-                    'fcompression': vals[12],
-                    'fsize_hex': vals[5],
-                    'fcsize_hex': vals[13],
-                })
-            idx += 1
-    finally:
-        if close_me:
-            fp.close()
-
-    if return_details:
-        return ok_all, details
-    return ok_all
-
-
-
-
-# Aliases for backward compatibility
+# Back-compat aliases
 ArchiveFileValidate_alt = archivefilevalidate_alt
 ArchiveFileListFiles_alt = archivefilelistfiles_alt
 
-
 # -----------------------------------------------------------------------------
-# Pack from iterator + foreign-archive conversion (stdlib-only)
+# Pack from iterator + foreign-archive conversion (stdlib + optional deps)
 # -----------------------------------------------------------------------------
 
 def pack_iter_alt(items, outfile, formatspecs=None,
@@ -1351,12 +1137,7 @@ def pack_iter_alt(items, outfile, formatspecs=None,
         uid (int), gid (int), uname (str), gname (str)
     """
     fs = _ensure_formatspecs(formatspecs)
-    close_me = False
-    if hasattr(outfile, 'write'):
-        fp = outfile
-    else:
-        fp = open(outfile, 'wb')
-        close_me = True
+    fp, close_me, to_bytes = _wrap_outfile(outfile)
 
     try:
         # Count items first (may be a generator -> materialize)
@@ -1440,33 +1221,37 @@ def pack_iter_alt(items, outfile, formatspecs=None,
 
         # end marker
         fp.write(_append_nulls(['0','0'], fs['format_delimiter']))
+        if to_bytes:
+            return fp.getvalue()
     finally:
         if close_me:
             fp.close()
 
-
 def _sniff_foreign_type(path):
-    lower = os.path.basename(path).lower()
+    lower = os.path.basename(path).lower() if isinstance(path, (str, bytes)) else ''
     # Extension first
     if lower.endswith('.zip'):
         return 'zip'
     if lower.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz')):
         return 'tar'
-    # Fallback: try magic via stdlib helpers
+    if lower.endswith('.rar'):
+        return 'rar'
+    if lower.endswith('.7z'):
+        return '7z'
+    # Fallback: stdlib probes for zip/tar only
     try:
         import zipfile
-        if zipfile.is_zipfile(path):
+        if isinstance(path, basestring) and zipfile.is_zipfile(path):
             return 'zip'
     except Exception:
         pass
     try:
         import tarfile
-        if hasattr(tarfile, 'is_tarfile') and tarfile.is_tarfile(path):
+        if isinstance(path, basestring) and hasattr(tarfile, 'is_tarfile') and tarfile.is_tarfile(path):
             return 'tar'
     except Exception:
         pass
     return None
-
 
 def _iter_tar_members(tarf):
     for m in tarf.getmembers():
@@ -1487,11 +1272,9 @@ def _iter_tar_members(tarf):
                    'uid': int(getattr(m, 'uid', 0)), 'gid': int(getattr(m, 'gid', 0)),
                    'uname': getattr(m, 'uname', ''), 'gname': getattr(m, 'gname', '')}
 
-
 def _iter_zip_members(zipf):
     for zi in zipf.infolist():
         name = zi.filename
-        # Derive mode from external_attr if present (Unix)
         mode = (zi.external_attr >> 16) & 0o777 if hasattr(zi, 'external_attr') else 0o644
         mtime = int(time.mktime(getattr(zi, 'date_time', (1980,1,1,0,0,0)) + (0,0,-1)))
         if name.endswith('/'):
@@ -1505,46 +1288,127 @@ def _iter_zip_members(zipf):
             yield {'name': name, 'is_dir': False, 'data': data,
                    'mode': (stat.S_IFREG | (mode or 0o644)), 'mtime': mtime}
 
+def _iter_rar_members(rarf):
+    for ri in rarf.infolist():
+        name = getattr(ri, 'filename', None) or getattr(ri, 'arcname', None)
+        if name is None:
+            continue
+        try:
+            is_dir = ri.is_dir()
+        except Exception:
+            is_dir = name.endswith('/') or name.endswith('\\')
+        try:
+            dt = getattr(ri, 'date_time', None)
+            if dt:
+                mtime = int(time.mktime(tuple(dt) + (0,0,-1)))
+            else:
+                mtime = int(time.time())
+        except Exception:
+            mtime = int(time.time())
+        if is_dir:
+            yield {'name': name, 'is_dir': True, 'data': None,
+                   'mode': (stat.S_IFDIR | 0o755), 'mtime': mtime}
+        else:
+            try:
+                data = rarf.read(ri)
+            except Exception:
+                data = b''
+            yield {'name': name, 'is_dir': False, 'data': data,
+                   'mode': (stat.S_IFREG | 0o644), 'mtime': mtime}
 
+def _iter_7z_members(z7):
+    names = []
+    try:
+        entries = z7.list()
+        for e in entries:
+            name = getattr(e, 'filename', None) or getattr(e, 'name', None)
+            if name is None:
+                continue
+            is_dir = bool(getattr(e, 'is_directory', False)) or name.endswith('/') or name.endswith('\\')
+            names.append((name, is_dir))
+    except Exception:
+        try:
+            for n in z7.getnames():
+                is_dir = n.endswith('/') or n.endswith('\\')
+                names.append((n, is_dir))
+        except Exception:
+            names = []
+    try:
+        data_map = z7.readall()
+    except Exception:
+        data_map = {}
 
-def convert_foreign_to_alt(infile, outfile, formatspecs=None,
+    for name, is_dir in names:
+        if is_dir:
+            yield {'name': name, 'is_dir': True, 'data': None,
+                   'mode': (stat.S_IFDIR | 0o755), 'mtime': int(time.time())}
+        else:
+            try:
+                blob = data_map.get(name, b'')
+                if not isinstance(blob, (bytes, bytearray)):
+                    try:
+                        blob = b''.join(blob) if isinstance(blob, list) else bytes(blob)
+                    except Exception:
+                        blob = b''
+            except Exception:
+                blob = b''
+            yield {'name': name, 'is_dir': False, 'data': blob,
+                   'mode': (stat.S_IFREG | 0o644), 'mtime': int(time.time())}
+
+def convert_foreign_to_alt(infile, outfile=None, formatspecs=None,
                            checksumtypes=("crc32","crc32","crc32"),
                            compression="auto",
                            compression_level=None):
     """
     Convert a foreign archive (zip/tar/rar/7z) into the alt ArchiveFile format.
     Uses stdlib for zip/tar; requires 'rarfile' for RAR and 'py7zr' for 7z.
+    Returns bytes when outfile is None/'-'; otherwise writes a file.
     """
-    kind = _sniff_foreign_type(infile)
-    if kind == 'zip':
+    kind = _sniff_foreign_type(infile) if isinstance(infile, basestring) else None
+
+    if kind == 'zip' or (not kind and not isinstance(infile, basestring)):
         import zipfile
-        with zipfile.ZipFile(infile, 'r') as zf:
-            return pack_iter_alt(_iter_zip_members(zf), outfile, formatspecs=formatspecs,
-                                 checksumtypes=checksumtypes, compression=compression,
-                                 compression_level=compression_level) or True
-    if kind == 'tar':
+        from io import BytesIO
+        zsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
+        try:
+            with zipfile.ZipFile(zsrc, 'r') as zf:
+                return pack_iter_alt(_iter_zip_members(zf), outfile, formatspecs=formatspecs,
+                                     checksumtypes=checksumtypes, compression=compression,
+                                     compression_level=compression_level)
+        except zipfile.BadZipfile:
+            pass  # maybe not a zip; try others
+
+    if kind == 'tar' or (not kind and isinstance(infile, basestring) and os.path.splitext(infile)[1].startswith('.tar')):
         import tarfile
-        mode = 'r:*'  # auto-detect compression
-        with tarfile.open(infile, mode) as tf:
+        from io import BytesIO
+        src = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
+        with tarfile.open(src, 'r:*') as tf:
             return pack_iter_alt(_iter_tar_members(tf), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
-                                 compression_level=compression_level) or True
+                                 compression_level=compression_level)
+
     if kind == 'rar':
         try:
             import rarfile
         except Exception as e:
             raise RuntimeError("RAR support requires 'rarfile' package: %s" % e)
-        with rarfile.RarFile(infile) as rf:
+        from io import BytesIO
+        rsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
+        with rarfile.RarFile(rsrc) as rf:
             return pack_iter_alt(_iter_rar_members(rf), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
-                                 compression_level=compression_level) or True
+                                 compression_level=compression_level)
+
     if kind == '7z':
         try:
             import py7zr
         except Exception as e:
             raise RuntimeError("7z support requires 'py7zr' package: %s" % e)
-        with py7zr.SevenZipFile(infile, 'r') as z7:
+        from io import BytesIO
+        zsrc = BytesIO(infile) if isinstance(infile, (bytes, bytearray, memoryview)) else (infile if isinstance(infile, basestring) else _wrap_infile(infile)[0])
+        with py7zr.SevenZipFile(zsrc, 'r') as z7:
             return pack_iter_alt(_iter_7z_members(z7), outfile, formatspecs=formatspecs,
                                  checksumtypes=checksumtypes, compression=compression,
-                                 compression_level=compression_level) or True
+                                 compression_level=compression_level)
+
     raise ValueError("Unsupported foreign archive (zip/tar/rar/7z only): %r" % (infile,))
