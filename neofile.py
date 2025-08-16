@@ -1,237 +1,128 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, print_function, unicode_literals
+import sys, os, io, argparse, json
 
-from __future__ import absolute_import, division, print_function, unicode_literals, generators, with_statement, nested_scopes
+__program_name__ = "PyNeoFile"
 
-"""
-neofile.py — CLI for the PyNeoFile format (.neo).
+try:
+    import pyneofile as P
+except Exception as e:
+    raise SystemExit("Failed to import core module 'pyneofile': %s" % (e,))
 
-New:
-- Input '-' for list/validate/extract/repack/convert reads archive bytes from stdin.
-- Output '-' for create/repack/convert writes archive bytes to stdout.
-- Extract with '-o -' streams a TAR archive to stdout (use: `... -e -i in.neo -o - > out.tar`).
-"""
+def _read_input_bytes(path):
+    if path in (None, '-', b'-'):
+        data = sys.stdin.buffer.read()
+        return data
+    with io.open(path, 'rb') as fp:
+        return fp.read()
 
-import os, sys, argparse, tempfile, tarfile, io, base64
-import pyneofile as N
-
-__project__ = N.__project__
-__program_name__ = N.__program_name__
-__project_url__ = N.__project_url__
-__version_info__ = N.__version_info__
-__version_date_info__ = N.__version_date_info__
-__version_date__ = N.__version_date__
-__version_date_plusrc__ = N.__version_date_plusrc__
-__version__ = N.__version__
-
-def _stdout_bin():
-    return getattr(sys.stdout, "buffer", sys.stdout)
-
-def _stdin_bin():
-    return getattr(sys.stdin, "buffer", sys.stdin)
-
-def _build_formatspecs_from_args(args):
-    if args.format is None or args.format.lower() == "auto":
-        return None
-    return {
-        "format_name": args.format,
-        "format_magic": args.format,
-        "format_ver": (args.formatver or "001"),
-        "format_delimiter": (args.delimiter or "\x00"),
-        "new_style": True,
-    }
-
-def _convert_or_fail(infile, outpath, formatspecs, checksum, compression, level):
-    try:
-        return N.convert_foreign_to_neo(infile, outpath, formatspecs=formatspecs,
-                                        checksumtypes=(checksum, checksum, checksum),
-                                        compression=compression, compression_level=level)
-    except RuntimeError as e:
-        msg = str(e)
-        if "rarfile" in msg.lower():
-            sys.stderr.write("error: RAR support requires 'rarfile'. Install via: pip install rarfile\n")
-        elif "py7zr" in msg.lower():
-            sys.stderr.write("error: 7z support requires 'py7zr'. Install via: pip install py7zr\n")
-        else:
-            sys.stderr.write("convert error: %s\n" % msg)
-        return None
-    except Exception as e:
-        sys.stderr.write("convert error: %s\n" % e)
-        return None
-
-def _emit_tar_stream_from_array(arr, outfp):
-    """Write a tar stream to outfp from the parsed archive array (no re-compress)."""
-    tf = tarfile.open(fileobj=outfp, mode='w|')  # stream mode
-    try:
-        for ent in arr['ffilelist']:
-            name = ent['fname'].lstrip('./')
-            if ent['ftype'] == 5:
-                ti = tarfile.TarInfo(name=name.rstrip('/') + '/')
-                ti.type = tarfile.DIRTYPE
-                ti.mode = ent.get('fmode', 0o755) & 0o777
-                ti.mtime = ent.get('fmtime', 0)
-                ti.size = 0
-                tf.addfile(ti)
-            else:
-                data = ent.get('fcontent') or b''
-                bio = io.BytesIO(data)
-                ti = tarfile.TarInfo(name=name)
-                ti.type = tarfile.REGTYPE
-                ti.mode = ent.get('fmode', 0o644) & 0o777
-                ti.mtime = ent.get('fmtime', 0)
-                ti.size = len(data)
-                tf.addfile(ti, fileobj=bio)
-    finally:
-        tf.close()
+def _write_output_bytes(path, data):
+    if path in (None, '-', b'-'):
+        sys.stdout.buffer.write(data)
+        return
+    d = os.path.dirname(path)
+    if d and not os.path.isdir(d):
+        os.makedirs(d)
+    with io.open(path, 'wb') as fp:
+        fp.write(data)
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="PyNeoFile (.neo) archiver", add_help=True)
-    p.add_argument("-V","--version", action="version", version=__program_name__ + " " + __version__)
+    p = argparse.ArgumentParser(prog=__program_name__, description="PyNeoFile CLI (core-only)")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument('-l', '--list', action='store_true', help='List archive entries')
+    g.add_argument('-e', '--extract', action='store_true', help='Extract files')
+    g.add_argument('-c', '--create', action='store_true', help='Create archive from path or stdin')
+    g.add_argument('-r', '--repack', action='store_true', help='Repack archive, optionally changing compression')
+    g.add_argument('--validate', action='store_true', help='Validate checksums/structure')
+    g.add_argument('-t', '--convert', action='store_true', help='Convert foreign (zip/tar) -> neo')
 
-    p.add_argument("-i","--input", nargs="+", required=True, help="Input files/dirs or archive file ('-' = stdin for archive bytes or newline-separated paths with -c)")
-    p.add_argument("-o","--output", default=None, help="Output file or directory ('-'=stdout for archive bytes; on -e streams a TAR)")
-
-    p.add_argument("-c","--create", action="store_true", help="Create a .neo archive from inputs")
-    p.add_argument("-e","--extract", action="store_true", help="Extract an archive to --output (or stream TAR to stdout with -o -)")
-    p.add_argument("-r","--repack", action="store_true", help="Repack an archive (change compression)")
-    p.add_argument("-l","--list", action="store_true", help="List entries")
-    p.add_argument("-v","--validate", action="store_true", help="Validate checksums")
-    p.add_argument("-t","--convert", action="store_true", help="Convert zip/tar/rar/7z → .neo first")
-
-    p.add_argument("-F","--format", default="auto", help="Format magic (default 'auto' via pyneofile.ini)")
-    p.add_argument("-D","--delimiter", default=None, help="Delimiter (when not using 'auto')")
-    p.add_argument("-m","--formatver", default=None, help="Version digits (e.g. 001)")
-
-    p.add_argument("-P","--compression", default="auto", help="Compression: none|zlib|gzip|bz2|xz|auto")
-    p.add_argument("-L","--level", default=None, help="Compression level/preset")
-    p.add_argument("-C","--checksum", default="crc32", help="Checksum algorithm")
-    p.add_argument("-s","--skipchecksum", action="store_true", help="Skip checks while reading")
-    p.add_argument("-d","--verbose", action="store_true", help="Verbose listing")
-    p.add_argument("-T","--text", action="store_true", help="Treat -i - as newline-separated path list when used with -c/--create")
+    p.add_argument('-i', '--input', required=False, help='Input path (use - for stdin)')
+    p.add_argument('-o', '--output', required=False, help='Output path (use - for stdout)')
+    p.add_argument('-P', '--compression', default='auto', help='Compression: auto|none|zlib|gzip|bz2|lzma')
+    p.add_argument('-L', '--level', default=None, type=int, help='Compression level')
+    p.add_argument('--skipchecksum', action='store_true', help='Skip content checksum verification')
+    p.add_argument('-d', '--verbose', action='store_true', help='Verbose listing')
+    p.add_argument('--no-json', action='store_true', help='Skip reading per-file JSON blocks (faster)')
 
     args = p.parse_args(argv)
 
-    formatspecs = _build_formatspecs_from_args(args)
-    inputs = args.input
-    infile0 = inputs[0]
-    compression = args.compression
-    level = None if args.level in (None, "",) else int(args.level)
-    checksum = args.checksum
-
-    # Determine active action
-    actions = ["create","extract","repack","list","validate"]
-    active = next((a for a in actions if getattr(args, a)), None)
-    if not active:
-        p.error("one of --create/--extract/--repack/--list/--validate is required")
-
-    # Helper: read archive bytes from stdin for non-create ops
-    def _maybe_archive_bytes():
-        if infile0 == '-':
-            return _stdin_bin().read()
-        return None
-
-    if args.create:
-        if infile0 == '-' and not args.text:
-            # read newline-separated paths from stdin
-            items = [line.strip() for line in sys.stdin if line.strip() and not line.startswith('#')]
-        else:
-            items = inputs
-
-        if args.convert:
-            if not args.output:
-                p.error("--output is required (use '-' to stream to stdout)")
-            data = _convert_or_fail(infile0, (None if args.output == '-' else args.output),
-                                    formatspecs, checksum, compression, level)
-            if data is None:
-                return 1
-            if args.output == '-':
-                _stdout_bin().write(data)
-            return 0
-
-        if not args.output:
-            p.error("--output is required for --create (use '-' to stream)")
-        out_bytes = (args.output == '-')
-        if out_bytes:
-            data = N.pack_neo(items, None, formatspecs=formatspecs,
-                              checksumtypes=(checksum, checksum, checksum),
-                              compression=compression, compression_level=level)
-            _stdout_bin().write(data)
-        else:
-            N.pack_neo(items, args.output, formatspecs=formatspecs,
-                       checksumtypes=(checksum, checksum, checksum),
-                       compression=compression, compression_level=level)
-            if args.verbose: sys.stderr.write("created: %s\n" % args.output)
-        return 0
-
-    if args.repack:
-        src = _maybe_archive_bytes() or infile0
-        if args.convert:
-            if not args.output:
-                p.error("--output is required (use '-' to stream)")
-            data = _convert_or_fail(src, (None if args.output == '-' else args.output),
-                                    formatspecs, checksum, compression, level)
-            if data is None:
-                return 1
-            if args.output == '-':
-                _stdout_bin().write(data)
-            return 0
-
-        if not args.output:
-            p.error("--output is required for --repack (use '-' to stream)")
-        if args.output == '-':
-            data = N.repack_neo(src, None, formatspecs=formatspecs,
-                                checksumtypes=(checksum, checksum, checksum),
-                                compression=compression, compression_level=level)
-            _stdout_bin().write(data)
-        else:
-            N.repack_neo(src, args.output, formatspecs=formatspecs,
-                         checksumtypes=(checksum, checksum, checksum),
-                         compression=compression, compression_level=level)
-            if args.verbose: sys.stderr.write("repacked: %s -> %s\n" % (('<stdin>' if infile0 == '-' else infile0), args.output))
-        return 0
-
-    if args.extract:
-        src = _maybe_archive_bytes() or infile0
-        if args.output in (None, '.') and infile0 == '-':
-            # default would attempt to mkdir '.'; fine
-            pass
-        if args.output == '-':
-            # stream TAR to stdout
-            arr = N.archive_to_array_neo(src, formatspecs=formatspecs, listonly=False,
-                                         skipchecksum=args.skipchecksum, uncompress=True)
-            _emit_tar_stream_from_array(arr, _stdout_bin())
-            return 0
-        outdir = args.output or "."
-        N.unpack_neo(src, outdir, formatspecs=formatspecs, skipchecksum=args.skipchecksum, uncompress=True)
-        if args.verbose: sys.stderr.write("extracted → %s\n" % outdir)
-        return 0
-
     if args.list:
-        src = _maybe_archive_bytes() or infile0
-        names = N.archivefilelistfiles_neo(src, formatspecs=formatspecs, advanced=args.verbose, include_dirs=True)
-        if not args.verbose:
-            for n in names: sys.stdout.write(n + "\n")
+        src = args.input
+        if src in (None, '-', b'-'):
+            data = _read_input_bytes(src)
+            entries = P.archivefilelistfiles_neo(data, advanced=args.verbose, include_dirs=True, skipjson=True if args.no_json else True)
         else:
-            for ent in names:
-                sys.stdout.write("%s\t%s\t%s\t%s\n" % (
-                    ent['type'], ent['compression'], ent['size'], ent['name']
-                ))
+            entries = P.archivefilelistfiles_neo(src, advanced=args.verbose, include_dirs=True, skipjson=args.no_json)
+        if args.verbose:
+            for e in entries:
+                if isinstance(e, dict):
+                    print("{type}	{compression}	{size}	{name}".format(**e))
+                else:
+                    print(e)
+        else:
+            for e in entries:
+                print(e['name'] if isinstance(e, dict) else e)
         return 0
 
     if args.validate:
-        src = _maybe_archive_bytes() or infile0
-        ok, details = N.archivefilevalidate_neo(src, formatspecs=formatspecs, verbose=args.verbose, return_details=True)
-        if not args.verbose:
-            sys.stdout.write("valid: %s\n" % ("yes" if ok else "no"))
+        src = args.input
+        if src in (None, '-', b'-'):
+            data = _read_input_bytes(src)
+            ok, details = P.archivefilevalidate_neo(data, verbose=args.verbose, return_details=True, skipjson=args.no_json)
         else:
-            sys.stdout.write("valid: %s (entries: %d)\n" % ("yes" if ok else "no", len(details)))
+            ok, details = P.archivefilevalidate_neo(src, verbose=args.verbose, return_details=True, skipjson=args.no_json)
+        print("OK" if ok else "BAD")
+        if args.verbose:
             for d in details:
-                sys.stdout.write("%4d %s h:%s j:%s c:%s\n" % (
-                    d['index'], d['name'], d['header_ok'], d['json_ok'], d['content_ok']
-                ))
+                print("{index}	{name}	{header_ok}	{json_ok}	{content_ok}".format(**d))
+        return 0 if ok else 2
+
+    if args.extract:
+        src = args.input
+        outdir = args.output or '.'
+        if src in (None, '-', b'-'):
+            data = _read_input_bytes(src)
+            ok = P.unpack_neo(data, outdir, skipchecksum=args.skipchecksum, uncompress=True)
+        else:
+            ok = P.unpack_neo(src, outdir, skipchecksum=args.skipchecksum, uncompress=True)
+        return 0 if ok else 1
+
+    if args.create:
+        dst = args.output or '-'
+        if args.input in (None, '-', b'-'):
+            data = _read_input_bytes(args.input)
+            payload = {"stdin.bin": data}
+            blob = P.pack_neo(payload, outfile=None, checksumtypes=('crc32','crc32','crc32'),
+                              encoding='UTF-8', compression=args.compression, compression_level=args.level)
+            _write_output_bytes(dst, blob)
+        else:
+            res = P.pack_neo(args.input, outfile=dst, checksumtypes=('crc32','crc32','crc32'),
+                             encoding='UTF-8', compression=args.compression, compression_level=args.level)
+            if isinstance(res, (bytes, bytearray)):
+                _write_output_bytes(dst, res)
         return 0
 
-    p.error("one of --create/--extract/--repack/--list/--validate is required")
+    if args.repack:
+        src = args.input
+        dst = args.output or '-'
+        res = P.repack_neo(src if src not in (None, '-', b'-') else _read_input_bytes(src),
+                           outfile=dst, checksumtypes=('crc32','crc32','crc32'),
+                           compression=args.compression, compression_level=args.level)
+        if isinstance(res, (bytes, bytearray)):
+            _write_output_bytes(dst, res)
+        return 0
+
+    if args.convert:
+        src = args.input
+        dst = args.output or '-'
+        if src in (None, '-', b'-'):
+            raise SystemExit("convert requires a path input (zip/tar). Use -i <file>")
+        res = P.convert_foreign_to_neo(src, outfile=dst, checksumtypes=('crc32','crc32','crc32'),
+                                       compression=args.compression, compression_level=args.level)
+        if isinstance(res, (bytes, bytearray)):
+            _write_output_bytes(dst, res)
+        return 0
 
 if __name__ == "__main__":
     sys.exit(main())
