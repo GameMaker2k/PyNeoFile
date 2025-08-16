@@ -157,7 +157,7 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
     if paths:
         if isinstance(paths, (list, tuple)): cands.extend(paths)
         else: cands.append(paths)
-    for env in ('PYNEOFILE_INI','PYARCHIVE_INI'):
+    for env in ('PYNEOFILE_INI'):
         p = os.environ.get(env);  cands.append(p) if p else None
     cands.extend(['neofile.ini'])
     picked = next((p for p in cands if p and os.path.isfile(p)), None)
