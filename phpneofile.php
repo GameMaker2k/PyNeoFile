@@ -119,7 +119,7 @@ function pn_decode_escape($s) {
 
 function pn_default_formatspecs() {
     return array(
-        'format_magic' => 'ArchiveFile',
+        'format_magic' => 'NeoFile',
         'format_ver' => '001',
         'format_delimiter' => "\x00",
         'new_style' => true,
@@ -138,12 +138,12 @@ function pn_load_formatspecs_from_ini($paths = null, $prefer_section = null) {
         if (is_array($paths)) $cands = array_merge($cands, $paths);
         else $cands[] = $paths;
     }
-    foreach (array('PYNEOFILE_INI','PYARCHIVE_INI') as $env) {
+    foreach (array('PYNEOFILE_INI') as $env) {
         if (!empty($_ENV[$env])) $cands[] = $_ENV[$env];
         elseif (!empty($_SERVER[$env])) $cands[] = $_SERVER[$env];
         elseif ($v = getenv($env)) $cands[] = $v;
     }
-    $cands = array_merge($cands, array('pyneofile.ini','archivefile.ini','catfile.ini','foxfile.ini'));
+    $cands = array_merge($cands, array('neofile.ini'));
     $picked = null;
     foreach ($cands as $p) {
         if ($p && is_file($p)) { $picked = $p; break; }
