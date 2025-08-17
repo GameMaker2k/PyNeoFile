@@ -2,116 +2,139 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-"""PyNeoFile CLI (core-only)
-- Uses only the `pyneofile` core module.
-- Supports --no-json fast path for scans.
-- Adds verbose (-d) printing during CREATE (-c), mirroring original output.
-"""
-
 import sys, os, io, argparse
-import pyneofile as P
 
-def _read_input_bytes(path):
-    if path in (None, '-', b'-'):
-        return getattr(sys.stdin, 'buffer', sys.stdin).read()
-    with io.open(path, 'rb') as fp: return fp.read()
+try:
+    import pyneofile as P  # core must provide *_neo functions
+except Exception as e:
+    sys.stderr.write("Failed to import core module 'pyneofile': %s\n" % (e,))
+    sys.exit(2)
 
-def _write_output_bytes(path, data):
-    if isinstance(data, str): data = data.encode('utf-8')
-    if path in (None, '-', b'-'):
-        getattr(sys.stdout, 'buffer', sys.stdout).write(data); return
-    d = os.path.dirname(path);  (os.makedirs(d) if d and not os.path.isdir(d) else None)
-    with io.open(path, 'wb') as fp: fp.write(data)
 
-def main(argv=None):
-    p = argparse.ArgumentParser(prog="neofile", description="PyNeoFile CLI (core-only)")
+def _expand_combined_short_opts(argv):
+    out = [argv[0]]
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a.startswith("--") or not (a.startswith("-") and len(a) > 2):
+            out.append(a); i += 1; continue
+        for ch in a[1:]:
+            out.append("-" + ch)
+        i += 1
+    return out
+
+
+def main():
+    argv = _expand_combined_short_opts(sys.argv)
+
+    p = argparse.ArgumentParser(
+        description="PyNeoFile CLI (uses pyneofile core)")
     g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument('-l', '--list', action='store_true')
-    g.add_argument('-e', '--extract', action='store_true')
-    g.add_argument('-c', '--create', action='store_true')
-    g.add_argument('-r', '--repack', action='store_true')
-    g.add_argument('--validate', action='store_true')
-    g.add_argument('-t', '--convert', action='store_true')
-    p.add_argument('-i','--input'); p.add_argument('-o','--output')
-    p.add_argument('-P','--compression', default='auto')
-    p.add_argument('-L','--level', default=None, type=int)
-    p.add_argument('--skipchecksum', action='store_true')
-    p.add_argument('-d','--verbose', action='store_true')
-    p.add_argument('--no-json', action='store_true')
-    a = p.parse_args(argv)
+    g.add_argument("-l", "--list", action="store_true", help="List archive")
+    g.add_argument("-e", "--extract", action="store_true", help="Extract archive")
+    g.add_argument("-c", "--create", action="store_true", help="Create archive from path")
+    g.add_argument("-r", "--repack", action="store_true", help="Repack (recompress) an archive")
+    g.add_argument("-E", "--empty", action="store_true", help="Create an empty archive")
 
-    if a.list:
-        src = a.input
-        if src in (None, '-', b'-'):
-            data = _read_input_bytes(src)
-            entries = P.archivefilelistfiles_neo(data, advanced=a.verbose, include_dirs=True, skipjson=True if a.no_json else True)
+    p.add_argument("-i", "--input", help="Input file/path", nargs="*")
+    p.add_argument("-o", "--output", help="Output file/dir (or '-' for stdout)")
+    p.add_argument("-d", "--verbose", action="store_true", help="Verbose/detailed listing")
+    p.add_argument("--no-json", action="store_true", help="Skip JSON parsing on read (faster)")
+    p.add_argument("-P", "--compression", default="auto", help="Compression algo (auto, none, zlib, gzip, bz2, lzma)")
+    p.add_argument("-L", "--level", type=int, default=None, help="Compression level/preset")
+    p.add_argument("--checksum", default="crc32", help="Checksum type for header/content/json (default: crc32)")
+
+    args = p.parse_args(argv[1:])
+
+    src = None
+    if args.input:
+        if isinstance(args.input, list) and len(args.input) == 1:
+            src = args.input[0]
+        elif isinstance(args.input, list) and len(args.input) > 1:
+            src = args.input[0]
         else:
-            entries = P.archivefilelistfiles_neo(src, advanced=a.verbose, include_dirs=True, skipjson=a.no_json)
-        if a.verbose:
-            for e in entries:
-                if isinstance(e, dict): print("{type}\t{compression}\t{size}\t{name}".format(**e))
-                else: print(e)
-        else:
-            for e in entries: print(e['name'] if isinstance(e, dict) else e)
+            src = args.input
+
+    if args.empty:
+        dst = args.output or "-"
+        blob_or_true = P.make_empty_file_neo(dst, fmttype="auto", checksumtype=args.checksum, formatspecs=None, encoding="UTF-8", returnfp=False)
+        if dst in (None, "-"):
+            data = blob_or_true if isinstance(blob_or_true, (bytes, bytearray)) else b""
+            if hasattr(sys.stdout, "buffer"):
+                sys.stdout.buffer.write(data)
+            else:
+                sys.stdout.write(data.decode("latin1"))
         return 0
 
-    if a.validate:
-        src = a.input
-        if src in (None, '-', b'-'):
-            data = _read_input_bytes(src)
-            ok, details = P.archivefilevalidate_neo(data, verbose=a.verbose, return_details=True, skipjson=a.no_json)
+    if args.list:
+        if not src:
+            p.error("list requires -i <archive>")
+        entries = P.archivefilelistfiles_neo(src, advanced=args.verbose, include_dirs=True, skipjson=args.no_json)
+        if args.verbose:
+            for e in entries:
+                if isinstance(e, dict):
+                    print("{type}\t{compression}\t{size}\t{name}".format(**e))
+                else:
+                    print(e)
         else:
-            ok, details = P.archivefilevalidate_neo(src, verbose=a.verbose, return_details=True, skipjson=a.no_json)
-        print("OK" if ok else "BAD")
-        if a.verbose:
-            for d in details: print("{index}\t{name}\t{header_ok}\t{json_ok}\t{content_ok}".format(**d))
-        return 0 if ok else 2
+            for n in entries:
+                print(n if isinstance(n, str) else n.get("name"))
+        return 0
 
-    if a.extract:
-        src = a.input; outdir = a.output or '.'
-        if src in (None, '-', b'-'):
-            data = _read_input_bytes(src); ok = P.unpack_neo(data, outdir, skipchecksum=a.skipchecksum, uncompress=True)
-        else:
-            ok = P.unpack_neo(src, outdir, skipchecksum=a.skipchecksum, uncompress=True)
+    if args.extract:
+        if not src:
+            p.error("extract requires -i <archive>")
+        outdir = args.output or "."
+        ok = P.unpack_neo(src, outdir, formatspecs=None, skipchecksum=False, uncompress=True)
         return 0 if ok else 1
 
-    if a.create:
-        dst = a.output or '-'; src_path = a.input
-        if src_path in (None, '-', b'-'):
-            data = _read_input_bytes(src_path); payload = {"stdin.bin": data}
-            blob = P.pack_neo(payload, outfile=None, checksumtypes=('crc32','crc32','crc32'),
-                              encoding='UTF-8', compression=a.compression, compression_level=a.level)
-            _write_output_bytes(dst, blob); return 0
-        if a.verbose:
-            norm = os.path.normpath(src_path)
-            if os.path.isfile(norm):
-                base = os.path.basename(norm).replace('\\','/'); print('./' + base)
+    if args.create:
+        if not src:
+            p.error("create requires -i <path>")
+        if args.verbose:
+            walkroot = src
+            if os.path.isdir(walkroot):
+                print(walkroot)
+                for root, dirs, files in os.walk(walkroot):
+                    relroot = root if root.startswith("./") else "./" + root.replace("\\", "/")
+                    if root != walkroot:
+                        print(relroot)
+                    for name in sorted(files):
+                        path = os.path.join(root, name).replace("\\", "/")
+                        if not path.startswith("./"):
+                            path = "./" + path
+                        print(path)
             else:
-                base = os.path.basename(norm).replace('\\','/')
-                for root, dirs, files in os.walk(norm, topdown=True):
-                    rel = base if root == norm else base + '/' + os.path.relpath(root, norm).replace('\\','/')
-                    print('./' + rel)
-                    for fname in sorted(files): print('./' + rel + '/' + fname)
-        res = P.pack_neo(src_path, outfile=dst, checksumtypes=('crc32','crc32','crc32'),
-                         encoding='UTF-8', compression=a.compression, compression_level=a.level)
-        if isinstance(res, (bytes, bytearray)): _write_output_bytes(dst, res)
-        return 0
+                path = src if src.startswith("./") else "./" + src
+                print(path)
 
-    if a.repack:
-        src = a.input; dst = a.output or '-'
-        data_or_path = src if src not in (None, '-', b'-') else _read_input_bytes(src)
-        res = P.repack_neo(data_or_path, outfile=dst, checksumtypes=('crc32','crc32','crc32'),
-                           compression=a.compression, compression_level=a.level)
-        if isinstance(res, (bytes, bytearray)): _write_output_bytes(dst, res)
-        return 0
+        outpath = args.output or "-"
+        ok = P.pack_neo(src, outpath, formatspecs=None, checksumtypes=("crc32","crc32","crc32"),
+                        encoding="UTF-8", compression=args.compression, compression_level=args.level)
+        if outpath in (None, "-") and isinstance(ok, (bytes, bytearray)):
+            if hasattr(sys.stdout, "buffer"):
+                sys.stdout.buffer.write(ok)
+            else:
+                sys.stdout.write(ok.decode("latin1"))
+            return 0
+        return 0 if ok else 1
 
-    if a.convert:
-        src = a.input; dst = a.output or '-'
-        if src in (None, '-', b'-'): raise SystemExit("convert requires a path input (zip/tar)")
-        res = P.convert_foreign_to_neo(src, outfile=dst, checksumtypes=('crc32','crc32','crc32'),
-                                       compression=a.compression, compression_level=a.level)
-        if isinstance(res, (bytes, bytearray)): _write_output_bytes(dst, res)
-        return 0
+    if args.repack:
+        if not src:
+            p.error("repack requires -i <archive>")
+        outpath = args.output or "-"
+        ok = P.repack_neo(src, outpath, formatspecs=None, checksumtypes=("crc32","crc32","crc32"),
+                          compression=args.compression, compression_level=args.level)
+        if outpath in (None, "-") and isinstance(ok, (bytes, bytearray)):
+            if hasattr(sys.stdout, "buffer"):
+                sys.stdout.buffer.write(ok)
+            else:
+                sys.stdout.write(ok.decode("latin1"))
+            return 0
+        return 0 if ok else 1
+
+    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
