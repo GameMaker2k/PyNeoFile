@@ -3,7 +3,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals, generators, with_statement, nested_scopes
 
 """
-pyneofile.py  —  Alternate ArchiveFile core with Py2/3 compatible logic.
+pyneofile.py  —  Alternate NeoFile core with Py2/3 compatible logic.
 
 Features:
 - Pack / unpack / repack / archive_to_array
@@ -56,12 +56,12 @@ except Exception:
 __program_name__ = "PyNeoFile"
 __project__ = __program_name__
 __project_url__ = "https://github.com/GameMaker2k/PyNeoFile"
-__version_info__ = (0, 19, 10, "RC 1", 1)
-__version_date_info__ = (2025, 8, 15, "RC 1", 1)
+__version_info__ = (0, 20, 0, "RC 1", 1)
+__version_date_info__ = (2025, 8, 18, "RC 1", 1)
 __version_date__ = str(__version_date_info__[0]) + "." + str(
     __version_date_info__[1]).zfill(2) + "." + str(__version_date_info__[2]).zfill(2)
 __revision__ = __version_info__[3]
-__revision_id__ = "$Id: f223ede8510b87bcffab7721f8b0f0171431dd4f $"
+__revision_id__ = "$Id$"
 if(__version_info__[4] is not None):
     __version_date_plusrc__ = __version_date__ + \
         "-" + str(__version_date_info__[4])
@@ -1122,7 +1122,7 @@ def _read_record_raw(fp, formatspecs):
     return headersize_hex, fields_len_hex, vals, json_bytes, content_stored
 
 def archivefilevalidate_neo(infile, formatspecs=None, verbose=False, return_details=False):
-    """Validate an ArchiveFile using the alt parser."""
+    """Validate an NeoFile using the alt parser."""
     fs = _ensure_formatspecs(formatspecs)
     details = []
     ok_all = True
@@ -1483,7 +1483,7 @@ def convert_foreign_to_neo(infile, outfile=None, formatspecs=None,
                            compression="auto",
                            compression_level=None):
     """
-    Convert a foreign archive (zip/tar/rar/7z) into the alt ArchiveFile format.
+    Convert a foreign archive (zip/tar/rar/7z) into the alt NeoFile format.
     Uses stdlib for zip/tar; requires 'rarfile' for RAR and 'py7zr' for 7z.
     Returns bytes when outfile is None/'-'; otherwise writes a file.
     """
