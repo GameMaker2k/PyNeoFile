@@ -39,7 +39,6 @@ def main():
     p.add_argument("-i", "--input", help="Input file/path", nargs="*")
     p.add_argument("-o", "--output", help="Output file/dir (or '-' for stdout)")
     p.add_argument("-d", "--verbose", action="store_true", help="Verbose/detailed listing")
-    p.add_argument("--no-json", action="store_true", help="Skip JSON parsing on read (faster)")
     p.add_argument("-P", "--compression", default="auto", help="Compression algo (auto, none, zlib, gzip, bz2, lzma)")
     p.add_argument("-L", "--level", type=int, default=None, help="Compression level/preset")
     p.add_argument("--checksum", default="crc32", help="Checksum type for header/content/json (default: crc32)")
@@ -69,7 +68,7 @@ def main():
     if args.list:
         if not src:
             p.error("list requires -i <archive>")
-        entries = P.archivefilelistfiles_neo(src, advanced=args.verbose, include_dirs=True, skipjson=args.no_json)
+        entries = P.archivefilelistfiles_neo(src, advanced=args.verbose, include_dirs=True)
         if args.verbose:
             for e in entries:
                 if isinstance(e, dict):
