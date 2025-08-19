@@ -325,7 +325,7 @@ def make_empty_file_neo(outfile=None, fmttype=None, checksumtype='crc32', format
     fs = _select_formatspecs_neo(formatspecs, fmttype, outfile)
     d  = fs['format_delimiter']
 
-    bufmode, fp, buf = _open_out(outfile)
+    bufmode, fp, buf = _wrap_outfile(outfile)
     class _Dst(object):
         def write(self, data): _write(bufmode, fp, buf, data)
     dst = _Dst()
