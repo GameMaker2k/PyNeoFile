@@ -175,6 +175,17 @@ def _wrap_outfile(outfile):
         return outfile, False, False
     return _iopen(outfile, 'wb'), True, False
 
+def _open_in(infile):
+    if hasattr(infile, 'read'): return infile, False
+    if isinstance(infile, (bytes, bytearray)): return io.BytesIO(infile), True
+    if infile is None: raise ValueError('infile is None')
+    return io.open(u(infile), 'rb'), True
+
+def _open_out(outfile):
+    if outfile in (None, '-', b'-'): return True, None, bytearray()
+    if hasattr(outfile, 'write'): return False, outfile, None
+    return False, io.open(u(outfile), 'wb'), None
+
 def _normalize_pack_inputs(infiles):
     """Normalize in-memory inputs into items for pack_iter_neo.
     Supported forms:
@@ -288,7 +299,7 @@ def make_empty_file_pointer_neo(fp, fmttype=None, checksumtype='crc32', formatsp
         def write(self, data): self.fp.write(data if isinstance(data, (bytes, bytearray)) else b(data))
 
     dst = _Dst(fp)
-    _write_global_header(dst, fs, 0, encoding, checksumtype)
+    _write_global_header(fp, 0, encoding, checksumtype, extradata=[], formatspecs=fs)
     fp.write(_append_nulls(['0', '0'], d))
     try:
         fp.flush()
@@ -314,12 +325,12 @@ def make_empty_file_neo(outfile=None, fmttype=None, checksumtype='crc32', format
     fs = _select_formatspecs_neo(formatspecs, fmttype, outfile)
     d  = fs['format_delimiter']
 
-    bufmode, fp, buf = _open_out(outfile)
+    bufmode, fp, buf = _wrap_outfile(outfile)
     class _Dst(object):
         def write(self, data): _write(bufmode, fp, buf, data)
     dst = _Dst()
-    _write_global_header(dst, fs, 0, encoding, checksumtype)
-    _write(bufmode, fp, buf, _append_nulls(['0', '0'], d))
+    _write_global_header(fp, 0, encoding, checksumtype, extradata=[], formatspecs=fs)
+    fp.write(_append_nulls(['0', '0'], d))
 
     # return policy
     if bufmode:
