@@ -290,21 +290,15 @@ def _select_formatspecs_neo(formatspecs=None, fmttype=None, outfile=None):
     # fall back to environment/defaults
     return _ensure_formatspecs(formatspecs)
 
-def make_empty_file_pointer_neo(fp, fmttype=None, checksumtype='crc32', formatspecs=None, encoding='UTF-8'):
+def make_empty_file_pointer_neo(fp, fmttype=None, checksumtype='crc32',
+                                formatspecs=None, encoding='UTF-8'):
     """
-    Write an empty archive (header + end marker) to an open, writable file-like object.
-    Returns the same fp (positioned at end).
+    Write an empty archive (header + end marker) to an open, writable
+    file-like object. Returns the same fp (positioned at end).
     """
     fs = _select_formatspecs_neo(formatspecs, fmttype, None)
-    d  = fs['format_delimiter']
-
-    class _Dst(object):
-        def __init__(self, fp): self.fp = fp
-        def write(self, data): self.fp.write(data if isinstance(data, (bytes, bytearray)) else b(data))
-
-    dst = _Dst(fp)
     _write_global_header(fp, 0, encoding, checksumtype, extradata=[], formatspecs=fs)
-    fp.write(_append_nulls(['0', '0'], d))
+    fp.write(_append_nulls(['0', '0'], fs['format_delimiter']))
     try:
         fp.flush()
         if hasattr(os, 'fsync'):
@@ -313,9 +307,12 @@ def make_empty_file_pointer_neo(fp, fmttype=None, checksumtype='crc32', formatsp
         pass
     return fp
 
-def make_empty_archive_file_pointer_neo(fp, fmttype=None, checksumtype='crc32', formatspecs=None, encoding='UTF-8'):
+
+def make_empty_archive_file_pointer_neo(fp, fmttype=None, checksumtype='crc32',
+                                        formatspecs=None, encoding='UTF-8'):
     """Alias for symmetry with other API names."""
     return make_empty_file_pointer_neo(fp, fmttype, checksumtype, formatspecs, encoding)
+
 
 def make_empty_file_neo(outfile=None, fmttype=None, checksumtype='crc32', formatspecs=None,
                         encoding='UTF-8', returnfp=False):
@@ -327,33 +324,41 @@ def make_empty_file_neo(outfile=None, fmttype=None, checksumtype='crc32', format
       - returnfp=True returns the open file object when writing to a file-like or path.
     """
     fs = _select_formatspecs_neo(formatspecs, fmttype, outfile)
-    d  = fs['format_delimiter']
 
-    bufmode, fp, buf = _wrap_outfile(outfile)
-    class _Dst(object):
-        def write(self, data): _write(bufmode, fp, buf, data)
-    dst = _Dst()
-    _write_global_header(fp, 0, encoding, checksumtype, extradata=[], formatspecs=fs)
-    fp.write(_append_nulls(['0', '0'], d))
+    fp, close_me, to_bytes = _wrap_outfile(outfile)
+    try:
+        _write_global_header(fp, 0, encoding, checksumtype, extradata=[], formatspecs=fs)
+        fp.write(_append_nulls(['0', '0'], fs['format_delimiter']))
 
-    # return policy
-    if bufmode:
-        # in-memory build (outfile is '-' or None)
-        return bytes(buf)
-    if returnfp:
+        # Return policy
+        if to_bytes:
+            # in-memory build (outfile is '-' or None)
+            return fp.getvalue()
+
+        if returnfp:
+            try:
+                if hasattr(fp, 'seek'):
+                    fp.seek(0, os.SEEK_SET)
+            except Exception:
+                pass
+            # Caller manages lifetime if we hand back the fp
+            return fp
+
         try:
-            if hasattr(fp, 'seek'):
-                fp.seek(0, os.SEEK_SET)
+            fp.flush()
+            if hasattr(os, 'fsync'):
+                os.fsync(fp.fileno())
         except Exception:
             pass
-        return fp
-    try:
-        fp.flush()
-        if hasattr(os, 'fsync'):
-            os.fsync(fp.fileno())
-    except Exception:
-        pass
-    return True
+        return True
+    finally:
+        # Only close if we opened it AND we're not returning the fp
+        if close_me and not returnfp:
+            try:
+                fp.close()
+            except Exception:
+                pass
+
 
 def make_empty_archive_file_neo(outfile=None, fmttype=None, checksumtype='crc32', formatspecs=None,
                                 encoding='UTF-8', returnfp=False):
