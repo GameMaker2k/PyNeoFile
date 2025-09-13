@@ -93,6 +93,19 @@ def _normalize_algo(algo):
         return 'auto'
     return a
 
+def _normalize_ver_digits(ver_text):
+    """
+    Make the on-disk version match Archive's strict header check:
+    - remove dots
+    - strip leading zeros by int() cast when numeric
+    Falls back to the raw digits if not purely numeric.
+    """
+    raw = ver_text.replace(".", "")
+    try:
+        return str(int(raw))  # "001" -> "1"
+    except ValueError:
+        return raw            # keep as-is if not numeric
+
 def _compress_bytes(data, algo='none', level=None):
     """Return (stored_bytes, used_algo)."""
     algo = _normalize_algo(algo)
@@ -440,7 +453,7 @@ def _load_formatspecs_from_ini(paths=None, prefer_section=None):
     ext   = _get('extension', '.neo')
 
     delim_real = _decode_delim_escape(delim)
-    ver_digits = _ver_digits(ver)
+    ver_digits = _normalize_ver_digits(_ver_digits(ver))
 
     spec = {
         'format_magic': magic,
@@ -511,7 +524,7 @@ def _checksum(data, cstype, text=False):
 def _write_global_header(fp, numfiles, encoding, checksumtype, extradata, formatspecs):
     delim = formatspecs['format_delimiter']
     magic = formatspecs['format_magic']
-    ver_digits = _ver_digits(formatspecs.get('format_ver','001'))
+    ver_digits = _normalize_ver_digits(_ver_digits(formatspecs.get('format_ver','001')))
 
     # extras blob: count + items
     if isinstance(extradata, dict) and extradata:
