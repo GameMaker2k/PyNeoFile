@@ -93,16 +93,18 @@ def _normalize_algo(algo):
         return 'auto'
     return a
 
-def _normalize_ver_digits(ver):
+def _normalize_ver_digits(ver_text):
     """
-    Accepts '001', '1', or int-like; returns a canonical zero-padded string
-    (e.g., '001'). Adjust this to whatever your writer emits in the global header.
+    Make the on-disk version match Archive's strict header check:
+    - remove dots
+    - strip leading zeros by int() cast when numeric
+    Falls back to the raw digits if not purely numeric.
     """
-    if ver is None:
-        return "001"
-    s = str(ver).replace('.', '')
-    # If your header stores zero-padded 3 digits, enforce that here:
-    return "{:0>3}".format(int(s)) if s.isdigit() else s
+    raw = ver_text.replace(".", "")
+    try:
+        return str(int(raw))  # "001" -> "1"
+    except ValueError:
+        return raw            # keep as-is if not numeric
 
 def _compress_bytes(data, algo='none', level=None):
     """Return (stored_bytes, used_algo)."""
@@ -694,14 +696,6 @@ def _parse_global_header(fp, formatspecs, skipchecksum=False):
     checksumtype = _read_cstring(fp, delim).decode('UTF-8')
     _header_cs = _read_cstring(fp, delim).decode('UTF-8')
     return {'fencoding': fencoding, 'fnumfiles': fnumfiles, 'fostype': fostype,
-    # --- Strict check for magic+version against formatspecs ---
-    exp_magic = formatspecs.get('format_magic', '')
-    exp_ver = _normalize_ver_digits(_ver_digits(formatspecs.get('format_ver', '001')))
-    expected_magicver = exp_magic + exp_ver
-    if str(magicver) != str(expected_magicver):
-        raise ValueError(
-            "Bad archive header: magic/version mismatch (got {!r}, expected {!r})".format(magicver, expected_magicver)
-        )
             'fextradata': extras, 'fchecksumtype': checksumtype,
             'ffilelist': [], 'fformatspecs': formatspecs}
 
