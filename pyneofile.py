@@ -695,6 +695,14 @@ def _parse_global_header(fp, formatspecs, skipchecksum=False):
         extras.append(_read_cstring(fp, delim).decode('UTF-8'))
     checksumtype = _read_cstring(fp, delim).decode('UTF-8')
     _header_cs = _read_cstring(fp, delim).decode('UTF-8')
+    # --- Strict check for magic+version against formatspecs ---
+    exp_magic = formatspecs.get('format_magic', '')
+    exp_ver = _normalize_ver_digits(_ver_digits(formatspecs.get('format_ver', '001')))
+    expected_magicver = exp_magic + exp_ver
+    if str(magicver) != str(expected_magicver):
+        raise ValueError(
+            "Bad archive header: magic/version mismatch (got {!r}, expected {!r})".format(magicver, expected_magicver)
+        )
     return {'fencoding': fencoding, 'fnumfiles': fnumfiles, 'fostype': fostype,
             'fextradata': extras, 'fchecksumtype': checksumtype,
             'ffilelist': [], 'fformatspecs': formatspecs}
