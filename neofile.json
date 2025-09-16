@@ -1,0 +1,19 @@
+{
+    "config": {
+        "default": "NeoFile"
+    },
+    "NeoFile": {
+        "magic": "NeoFile",
+        "ver": "001",
+        "delimiter": "\\x00",
+        "newstyle": "true",
+        "extension": ".neo"
+    },
+    "ArchiveFile": {
+        "magic": "ArchiveFile",
+        "ver": "001",
+        "delimiter": "\\x00",
+        "newstyle": "true",
+        "extension": ".arc"
+    }
+}
