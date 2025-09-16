@@ -60,8 +60,8 @@ __use_ini_name__ = "neofile.ini"
 __program_name__ = "PyNeoFile"
 __project__ = __program_name__
 __project_url__ = "https://github.com/GameMaker2k/PyNeoFile"
-__version_info__ = (0, 20, 6, "RC 1", 1)
-__version_date_info__ = (2025, 9, 15, "RC 1", 1)
+__version_info__ = (0, 20, 8, "RC 1", 1)
+__version_date_info__ = (2025, 9, 16, "RC 1", 1)
 __version_date__ = str(__version_date_info__[0]) + "." + str(
     __version_date_info__[1]).zfill(2) + "." + str(__version_date_info__[2]).zfill(2)
 __revision__ = __version_info__[3]
