@@ -13,7 +13,7 @@
     Copyright 2016-2024 Game Maker 2k - http://intdb.sourceforge.net/
     Copyright 2016-2024 Kazuki Przyborowski - https://github.com/KazukiPrzyborowski
 
-    $FileInfo: setup.py - Last Update: 8/24/2025 Ver. 0.21.2 RC 1 - Author: cooldude2k $
+    $FileInfo: setup.py - Last Update: 8/26/2025 Ver. 0.21.4 RC 1 - Author: cooldude2k $
 '''
 
 import os
@@ -67,8 +67,8 @@ pymodule['verdatelist'] = (int(setuppy_dateinfo_exp[0]), int(setuppy_dateinfo_ex
 pymodule['name'] = 'PyArchiveFile'
 pymodule['author'] = 'Kazuki Przyborowski'
 pymodule['authoremail'] = 'kazuki.przyborowski@gmail.com'
-pymodule['maintainer'] = 'Kazuki Przyborowski'
-pymodule['maintaineremail'] = 'kazuki.przyborowski@gmail.com'
+pymodule['maintainer'] = 'Kazuki Suzuki Sadeghi'
+pymodule['maintaineremail'] = 'kazuki.suzuki.sadeghi@gmail.com'
 pymodule['description'] = 'A tar like file format name neofile.'
 pymodule['license'] = 'Revised BSD License'
 pymodule['keywords'] = 'neofile neo neofile-neo pyneofile python python-neofile neko nekofile neko-neo nekofile-neo pynekofile python python-nekofile compression tarball gzip tar bzip2 tar-neo lzma xz gz lzma2 xz2 tarlike tarlite'
