@@ -703,7 +703,7 @@ def _parse_global_header(fp, formatspecs, skipchecksum=False):
         raise ValueError(
             "Bad archive header: magic/version mismatch (got {!r}, expected {!r})".format(magicver, expected_magicver)
         )
-    return {'fencoding': fencoding, 'fnumfiles': fnumfiles, 'fostype': fostype,
+    return {'fencoding': fencoding, 'fnumfiles': fnumfiles, 'ffilestart': 0, 'fostype': fostype,
             'fextradata': extras, 'fchecksumtype': checksumtype,
             'ffilelist': [], 'fformatspecs': formatspecs}
 
