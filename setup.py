@@ -65,10 +65,10 @@ pymodule['verdaterc'] = int(setuppy_dateinfo_exp[4])
 pymodule['verdatelist'] = (int(setuppy_dateinfo_exp[0]), int(setuppy_dateinfo_exp[1]), int(
     setuppy_dateinfo_exp[2]), str(setuppy_dateinfo_exp[3]), int(setuppy_dateinfo_exp[4]))
 pymodule['name'] = 'PyArchiveFile'
-pymodule['author'] = 'Kazuki Przyborowski'
-pymodule['authoremail'] = 'kazuki.przyborowski@gmail.com'
-pymodule['maintainer'] = 'Kazuki Suzuki Sadeghi'
-pymodule['maintaineremail'] = 'kazuki.suzuki.sadeghi@gmail.com'
+pymodule['author'] = 'Kazuhana Neko-chan'
+pymodule['authoremail'] = 'kazuki.suzuki.cat@gmail.com'
+pymodule['maintainer'] = 'Kazuhika Kitsune-chan'
+pymodule['maintaineremail'] = 'kazuki.suzuki.fox@gmail.com'
 pymodule['description'] = 'A tar like file format name neofile.'
 pymodule['license'] = 'Revised BSD License'
 pymodule['keywords'] = 'neofile neo neofile-neo pyneofile python python-neofile neko nekofile neko-neo nekofile-neo pynekofile python python-nekofile compression tarball gzip tar bzip2 tar-neo lzma xz gz lzma2 xz2 tarlike tarlite'
