@@ -22,7 +22,7 @@ import sys
 from setuptools import setup
 
 # Open and read the version info file in a Python 2/3 compatible way
-verinfofilename = os.path.realpath("."+os.path.sep+os.path.sep+"pyneofile.py")
+verinfofilename = os.path.realpath("."+os.path.sep+os.path.sep+"pyarchivefile.py")
 
 # Use `with` to ensure the file is properly closed after reading
 # In Python 2, open defaults to text mode; in Python 3, it’s better to specify encoding
@@ -69,13 +69,13 @@ pymodule['author'] = 'Kazuhana Neko-chan'
 pymodule['authoremail'] = 'kazuki.suzuki.cat@gmail.com'
 pymodule['maintainer'] = 'Kazuhika Kitsune-chan'
 pymodule['maintaineremail'] = 'kazuki.suzuki.fox@gmail.com'
-pymodule['description'] = 'A tar like file format name neofile.'
+pymodule['description'] = 'A tar like file format name archivefile.'
 pymodule['license'] = 'Revised BSD License'
-pymodule['keywords'] = 'neofile neo neofile-neo pyneofile python python-neofile neko nekofile neko-neo nekofile-neo pynekofile python python-nekofile compression tarball gzip tar bzip2 tar-neo lzma xz gz lzma2 xz2 tarlike tarlite'
-pymodule['url'] = 'https://github.com/GameMaker2k/PyArchiveFile'
-pymodule['downloadurl'] = 'https://github.com/GameMaker2k/PyArchiveFile/neo/master.tar.gz'
+pymodule['keywords'] = 'archivefile archive archivefile-archive pyarchivefile python python-archivefile neko nekofile neko-archive nekofile-archive pynekofile python python-nekofile compression tarball gzip tar bzip2 tar-archive lzma xz gz lzma2 xz2 tarlike tarlite'
+pymodule['url'] = 'https://github.com/GameMaker2k/PyNeoFile'
+pymodule['downloadurl'] = 'https://github.com/GameMaker2k/PyNeoFile/archive/master.tar.gz'
 pymodule[
-    'longdescription'] = 'A tar like file format name neofile.'
+    'longdescription'] = 'A tar like file format name archivefile.'
 pymodule['platforms'] = 'OS Independent'
 pymodule['zipsafe'] = True
 pymodule['pymodules'] = ['pyneofile']

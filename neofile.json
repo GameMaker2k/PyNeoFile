@@ -1,19 +1,33 @@
 {
     "config": {
-        "default": "NeoFile"
+        "default": "NeoFile",
+        "proname": "PyNeoFile",
+        "includedef": true,
+        "useinmem": true,
+        "usememfd": true,
+        "usespoolfile": false,
+        "spoolfilesize": 4194304,
+        "filebuffsize": 262144,
+        "advancedlist": true,
+        "altinode": false,
+        "newstyle": true
     },
     "NeoFile": {
-        "magic": "NeoFile",
+        "len": 7,
+        "hex": "4e656f46696c65",
         "ver": "001",
+        "name": "NeoFile",
+        "magic": "NeoFile",
         "delimiter": "\u0000",
-        "newstyle": "true",
         "extension": ".neo"
     },
     "ArchiveFile": {
-        "magic": "ArchiveFile",
+        "len": 11,
+        "hex": "4172636869766546696c65",
         "ver": "001",
+        "name": "ArchiveFile",
+        "magic": "ArchiveFile",
         "delimiter": "\u0000",
-        "newstyle": "true",
         "extension": ".arc"
     }
 }

@@ -1,139 +1,237 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function, unicode_literals
 
-import sys, os, io, argparse
+'''
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the Revised BSD License.
 
-try:
-    import pyneofile as P  # core must provide *_neo functions
-except Exception as e:
-    sys.stderr.write("Failed to import core module 'pyneofile': %s\n" % (e,))
-    sys.exit(2)
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    Revised BSD License for more details.
 
+    Copyright 2018-2024 Cool Dude 2k - http://idb.berlios.de/
+    Copyright 2018-2024 Game Maker 2k - http://intdb.sourceforge.net/
+    Copyright 2018-2024 Kazuki Przyborowski - https://github.com/KazukiPrzyborowski
 
-def _expand_combined_short_opts(argv):
-    out = [argv[0]]
-    i = 1
-    while i < len(argv):
-        a = argv[i]
-        if a.startswith("--") or not (a.startswith("-") and len(a) > 2):
-            out.append(a); i += 1; continue
-        for ch in a[1:]:
-            out.append("-" + ch)
-        i += 1
-    return out
+    $FileInfo: neofile.py - Last Update: 11/15/2025 Ver. 0.27.2 RC 1 - Author: cooldude2k $
+'''
 
+from __future__ import absolute_import, division, print_function, unicode_literals, generators, with_statement, nested_scopes
+import os
+import sys
+import logging
+import argparse
+import pyneofile
+import binascii
 
-def main():
-    argv = _expand_combined_short_opts(sys.argv)
+# Text streams (as provided by Python)
+PY_STDIN_TEXT  = sys.stdin
+PY_STDOUT_TEXT = sys.stdout
+PY_STDERR_TEXT = sys.stderr
 
-    p = argparse.ArgumentParser(
-        description="PyNeoFile CLI (uses pyneofile core)")
-    g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument("-l", "--list", action="store_true", help="List archive")
-    g.add_argument("-e", "--extract", action="store_true", help="Extract archive")
-    g.add_argument("-c", "--create", action="store_true", help="Create archive from path")
-    g.add_argument("-r", "--repack", action="store_true", help="Repack (recompress) an archive")
-    g.add_argument("-E", "--empty", action="store_true", help="Create an empty archive")
+# Binary-friendly streams (use .buffer on Py3, fall back on Py2)
+PY_STDIN_BUF  = getattr(sys.stdin,  "buffer", sys.stdin)
+PY_STDOUT_BUF = getattr(sys.stdout, "buffer", sys.stdout)
+PY_STDERR_BUF = getattr(sys.stderr, "buffer", sys.stderr)
+logging.basicConfig(format="%(message)s", stream=PY_STDOUT_TEXT, level=logging.DEBUG)
 
-    p.add_argument("-i", "--input", help="Input file/path", nargs="*")
-    p.add_argument("-o", "--output", help="Output file/dir (or '-' for stdout)")
-    p.add_argument("-d", "--verbose", action="store_true", help="Verbose/detailed listing")
-    p.add_argument("-P", "--compression", default="auto", help="Compression algo (auto, none, zlib, gzip, bz2, lzma)")
-    p.add_argument("-L", "--level", type=int, default=None, help="Compression level/preset")
-    p.add_argument("--checksum", default="crc32", help="Checksum type for header/content/json (default: crc32)")
+# Conditional import and signal handling for Unix-like systems
+if os.name != 'nt':  # Not Windows
+    import signal
+    if hasattr(signal, 'SIGPIPE'):
+        def handler(signum, frame):
+            pyneofile.VerbosePrintOut(
+                "Received SIGPIPE, exiting gracefully.", "info")
+            sys.exit(0)
+        signal.signal(signal.SIGPIPE, handler)
 
-    args = p.parse_args(argv[1:])
+rarfile_support = pyneofile.rarfile_support
+py7zr_support = pyneofile.py7zr_support
 
-    src = None
-    if args.input:
-        if isinstance(args.input, list) and len(args.input) == 1:
-            src = args.input[0]
-        elif isinstance(args.input, list) and len(args.input) > 1:
-            src = args.input[0]
+if(sys.version[0] == "2"):
+    try:
+        from io import StringIO, BytesIO
+    except ImportError:
+        try:
+            from cStringIO import StringIO
+            from cStringIO import StringIO as BytesIO
+        except ImportError:
+            from StringIO import StringIO
+            from StringIO import StringIO as BytesIO
+elif(sys.version[0] >= "3"):
+    from io import StringIO, BytesIO
+else:
+    teststringio = 0
+    if(teststringio <= 0):
+        try:
+            from cStringIO import StringIO as BytesIO
+            teststringio = 1
+        except ImportError:
+            teststringio = 0
+    if(teststringio <= 0):
+        try:
+            from StringIO import StringIO as BytesIO
+            teststringio = 2
+        except ImportError:
+            teststringio = 0
+    if(teststringio <= 0):
+        try:
+            from io import BytesIO
+            teststringio = 3
+        except ImportError:
+            teststringio = 0
+
+__project__ = pyneofile.__project__
+__program_name__ = pyneofile.__program_name__
+__file_format_name__ = pyneofile.__file_format_name__
+__file_format_magic__ = pyneofile.__file_format_magic__
+__file_format_len__ = pyneofile.__file_format_len__
+__file_format_hex__ = pyneofile.__file_format_hex__
+__file_format_delimiter__ = pyneofile.__file_format_delimiter__
+__file_format_dict__ = pyneofile.__file_format_dict__
+__file_format_default__ = pyneofile.__file_format_default__
+__file_format_multi_dict__ = pyneofile.__file_format_multi_dict__
+__use_new_style__ = pyneofile.__use_new_style__
+__use_advanced_list__ = pyneofile.__use_advanced_list__
+__use_alt_inode__ = pyneofile.__use_alt_inode__
+__project_url__ = pyneofile.__project_url__
+__version_info__ = pyneofile.__version_info__
+__version_date_info__ = pyneofile.__version_date_info__
+__version_date__ = pyneofile.__version_date__
+__version_date_plusrc__ = pyneofile.__version_date_plusrc__
+__version__ = pyneofile.__version__
+
+# Initialize the argument parser
+argparser = argparse.ArgumentParser(description="Manipulate archive files.", conflict_handler="resolve", add_help=True)
+
+# Version information
+argparser.add_argument("-V", "--version", action="version", version=__program_name__ + " " + __version__)
+# Input and output specifications
+argparser.add_argument("-i", "--input", nargs="+", help="Specify the file(s) to concatenate or the archive file to extract.", required=True)
+argparser.add_argument("-o", "--output", default=None, help="Specify the name for the extracted or output archive files.")
+# Operations
+argparser.add_argument("-c", "--create", action="store_true", help="Perform only the concatenation operation.")
+argparser.add_argument("-e", "--extract", action="store_true", help="Perform only the extraction operation.")
+argparser.add_argument("-t", "--convert", action="store_true", help="Convert a tar/zip/rar/7zip file to a archive file.")
+argparser.add_argument("-r", "--repack", action="store_true", help="Re-concatenate files, fixing checksum errors if any.")
+argparser.add_argument("-S", "--filestart", type=int, default=0, help="Start reading file at.")
+# File manipulation options
+argparser.add_argument("-F", "--format", default="auto", help="Specify the format to use.")
+argparser.add_argument("-D", "--delimiter", default=__file_format_dict__['format_delimiter'], help="Specify the delimiter to use.")
+argparser.add_argument("-m", "--formatver", default=__file_format_dict__['format_ver'], help="Specify the format version.")
+argparser.add_argument("-l", "--list", action="store_true", help="List files included in the archive file.")
+# Compression options
+argparser.add_argument("-P", "--compression", default="auto", help="Specify the compression method to use for concatenation.")
+argparser.add_argument("-L", "--level", default=None, help="Specify the compression level for concatenation.")
+argparser.add_argument("-W", "--wholefile", action="store_true", help="Whole file compression method to use for concatenation.")
+# Checksum and validation
+argparser.add_argument("-v", "--validate", action="store_true", help="Validate archive file checksums.")
+argparser.add_argument("-C", "--checksum", default="md5", help="Specify the type of checksum to use. The default is md5.")
+argparser.add_argument("-s", "--skipchecksum", action="store_true", help="Skip the checksum check of files.")
+argparser.add_argument("-k", "--insecretkey", default=None, help="Secretkey to use for checksum input.")
+argparser.add_argument("-K", "--outsecretkey", default=None, help="Secretkey to use for checksum output.")
+# Permissions and metadata
+argparser.add_argument("-p", "--preserve", action="store_false", help="Do not preserve permissions and timestamps of files.")
+# Miscellaneous
+argparser.add_argument("-d", "--verbose", action="store_true", help="Enable verbose mode to display various debugging information.")
+argparser.add_argument("-T", "--text", action="store_true", help="Read file locations from a text file.")
+# Parse the arguments
+getargs = argparser.parse_args()
+
+fname = getargs.format
+if(getargs.format=="auto"):
+    fnamedict = __file_format_multi_dict__
+    __file_format_default__ = getargs.format
+else:
+    fnamemagic = fname
+    fnamelen = len(fname)
+    fnamehex = binascii.hexlify(fname.encode("UTF-8")).decode("UTF-8")
+    __file_format_default__ = fnamemagic
+    fnamesty = __use_new_style__
+    fnamelst = __use_advanced_list__
+    fnameino = __use_alt_inode__
+    fnamedict = {'format_name': fname, 'format_magic': fnamemagic, 'format_len': fnamelen, 'format_hex': fnamehex,
+                 'format_delimiter': getargs.delimiter, 'format_ver': getargs.formatver, 'new_style': fnamesty, 'use_advanced_list': fnamelst, 'use_alt_inode': fnameino}
+
+# Determine the primary action based on user input
+actions = ['create', 'extract', 'list', 'repack', 'validate']
+active_action = next(
+    (action for action in actions if getattr(getargs, action)), None)
+input_file = getargs.input[0]
+
+# Execute the appropriate functions based on determined actions and arguments
+if active_action:
+    if active_action == 'create':
+        if getargs.convert:
+            checkcompressfile = pyneofile.CheckCompressionSubType(
+                input_file, fnamedict, 0, True)
+            if((pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict) or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile==fnamedict['format_magic'])):
+                tmpout = pyneofile.RePackNeoFile(input_file, getargs.output, "auto", getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, False, 0, 0, 0, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], getargs.skipchecksum, [], {}, fnamedict, getargs.insecretkey, getargs.outsecretkey, False, getargs.verbose, False)
+            else:
+                tmpout = pyneofile.PackNeoFileFromInFile(
+                    input_file, getargs.output, __file_format_default__, getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], [], {}, fnamedict, getargs.outsecretkey, getargs.verbose, False)
+            if(not tmpout):
+                sys.exit(1)
         else:
-            src = args.input
-
-    if args.empty:
-        dst = args.output or "-"
-        blob_or_true = P.make_empty_file_neo(dst, fmttype="auto", checksumtype=args.checksum, formatspecs=None, encoding="UTF-8", returnfp=False)
-        if dst in (None, "-"):
-            data = blob_or_true if isinstance(blob_or_true, (bytes, bytearray)) else b""
-            if hasattr(sys.stdout, "buffer"):
-                sys.stdout.buffer.write(data)
+            pyneofile.PackNeoFile(getargs.input, getargs.output, getargs.text, __file_format_default__, getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, False, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], [], {}, fnamedict, getargs.outsecretkey, getargs.verbose, False)
+    elif active_action == 'repack':
+        if getargs.convert:
+            checkcompressfile = pyneofile.CheckCompressionSubType(
+                input_file, fnamedict, 0, True)
+            if((pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict) or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile==fnamedict['format_magic'])):
+                pyneofile.RePackNeoFile(input_file, getargs.output, "auto", getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt,
+                                            False, 0, 0, 0, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], getargs.skipchecksum, [], {}, fnamedict, getargs.insecretkey, getargs.outsecretkey, False, getargs.verbose, False)
             else:
-                sys.stdout.write(data.decode("latin1"))
-        return 0
-
-    if args.list:
-        if not src:
-            p.error("list requires -i <archive>")
-        entries = P.archivefilelistfiles_neo(src, advanced=args.verbose, include_dirs=True)
-        if args.verbose:
-            for e in entries:
-                if isinstance(e, dict):
-                    print("{type}\t{compression}\t{size}\t{name}".format(**e))
-                else:
-                    print(e)
+                pyneofile.PackNeoFileFromInFile(input_file, getargs.output, __file_format_default__, getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], [], {}, fnamedict, getargs.outsecretkey, getargs.verbose, False)
+            if(not tmpout):
+                sys.exit(1)
         else:
-            for n in entries:
-                print(n if isinstance(n, str) else n.get("name"))
-        return 0
-
-    if args.extract:
-        if not src:
-            p.error("extract requires -i <archive>")
-        outdir = args.output or "."
-        ok = P.unpack_neo(src, outdir, formatspecs=None, skipchecksum=False, uncompress=True)
-        return 0 if ok else 1
-
-    if args.create:
-        if not src:
-            p.error("create requires -i <path>")
-        if args.verbose:
-            walkroot = src
-            if os.path.isdir(walkroot):
-                print(walkroot)
-                for root, dirs, files in os.walk(walkroot):
-                    relroot = root if root.startswith("./") else "./" + root.replace("\\", "/")
-                    if root != walkroot:
-                        print(relroot)
-                    for name in sorted(files):
-                        path = os.path.join(root, name).replace("\\", "/")
-                        if not path.startswith("./"):
-                            path = "./" + path
-                        print(path)
+            pyneofile.RePackNeoFile(input_file, getargs.output, "auto", getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt,
+                                        False, getargs.filestart, 0, 0, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], getargs.skipchecksum, [], {}, fnamedict, getargs.insecretkey, getargs.outsecretkey, False, getargs.verbose, False)
+    elif active_action == 'extract':
+        if getargs.convert:
+            checkcompressfile = pyneofile.CheckCompressionSubType(
+                input_file, fnamedict, 0, True)
+            tempout = BytesIO()
+            if((pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict) or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile==fnamedict['format_magic'])):
+                tmpout = pyneofile.RePackNeoFile(input_file, tempout, "auto", getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, False, 0, 0, 0, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], getargs.skipchecksum, [], {}, fnamedict, getargs.insecretkey, getargs.outsecretkey, False, False)
             else:
-                path = src if src.startswith("./") else "./" + src
-                print(path)
-
-        outpath = args.output or "-"
-        ok = P.pack_neo(src, outpath, formatspecs=None, checksumtypes=("crc32","crc32","crc32"),
-                        encoding="UTF-8", compression=args.compression, compression_level=args.level)
-        if outpath in (None, "-") and isinstance(ok, (bytes, bytearray)):
-            if hasattr(sys.stdout, "buffer"):
-                sys.stdout.buffer.write(ok)
+                tmpout = pyneofile.PackNeoFileFromInFile(
+                    input_file, tempout, __file_format_default__, getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], [], {}, fnamedict, getargs.outsecretkey, False, False)
+            if(not tmpout):
+                sys.exit(1)
+            input_file = tempout
+        pyneofile.UnPackNeoFile(input_file, getargs.output, False, getargs.filestart, 0, 0, getargs.skipchecksum,
+                                    fnamedict, getargs.verbose, getargs.preserve, getargs.preserve, False, False)
+    elif active_action == 'list':
+        if getargs.convert:
+            checkcompressfile = pyneofile.CheckCompressionSubType(
+                input_file, fnamedict, 0, True)
+            if((pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict) or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile==fnamedict['format_magic'])):
+                tmpout = pyneofile.NeoFileListFiles(input_file, "auto", getargs.filestart, 0, 0, getargs.skipchecksum, fnamedict, getargs.insecretkey, False, getargs.verbose, False, False)
             else:
-                sys.stdout.write(ok.decode("latin1"))
-            return 0
-        return 0 if ok else 1
-
-    if args.repack:
-        if not src:
-            p.error("repack requires -i <archive>")
-        outpath = args.output or "-"
-        ok = P.repack_neo(src, outpath, formatspecs=None, checksumtypes=("crc32","crc32","crc32"),
-                          compression=args.compression, compression_level=args.level)
-        if outpath in (None, "-") and isinstance(ok, (bytes, bytearray)):
-            if hasattr(sys.stdout, "buffer"):
-                sys.stdout.buffer.write(ok)
+                tmpout = pyneofile.InFileListFiles(input_file, getargs.verbose, fnamedict, getargs.insecretkey, False, False, False)
+            if(not tmpout):
+                sys.exit(1)
+        else:
+            pyneofile.NeoFileListFiles(input_file, "auto", getargs.filestart, 0, 0, getargs.skipchecksum, fnamedict, getargs.insecretkey, False, getargs.verbose, False, False)
+    elif active_action == 'validate':
+        if getargs.convert:
+            checkcompressfile = pyneofile.CheckCompressionSubType(
+                input_file, fnamedict, 0, True)
+            tempout = BytesIO()
+            if((pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict) or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile==fnamedict['format_magic'])):
+                tmpout = pyneofile.RePackNeoFile(input_file, tempout, "auto", getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, False, 0, 0, 0, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], getargs.skipchecksum, [], {}, fnamedict, getargs.insecretkey, getargs.outsecretkey, False, False, False)
             else:
-                sys.stdout.write(ok.decode("latin1"))
-            return 0
-        return 0 if ok else 1
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+                tmpout = pyneofile.PackNeoFileFromInFile(
+                    input_file, tempout, __file_format_default__, getargs.compression, getargs.wholefile, getargs.level, pyneofile.compressionlistalt, [getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum, getargs.checksum], [], {}, fnamedict, getargs.outsecretkey, False, False)
+            input_file = tempout
+            if(not tmpout):
+                sys.exit(1)
+        fvalid = pyneofile.StackedNeoFileValidate(
+            input_file, "auto", getargs.filestart, fnamedict, getargs.insecretkey, False, getargs.verbose, False)
+        if(fvalid):
+            pyneofile.VerbosePrintOut("File is valid: \n" + str(input_file))
+        else:
+            pyneofile.VerbosePrintOut("File is invalid: \n" + str(input_file))

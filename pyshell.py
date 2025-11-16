@@ -23,9 +23,9 @@ import traceback
 import code
 import re
 import readline
-import pyarchivefile
+import pyneofile
 from sys import argv
-from pyarchivefile import *
+from pyneofile import *
 
 taskfound = False
 if(len(sys.argv) < 2):
