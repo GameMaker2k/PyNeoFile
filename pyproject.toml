@@ -4,7 +4,7 @@
     readme = "README.md"
     license = { text = "BSD-3-Clause" }
     keywords = []
-    description = "A tar like file format name archivefile."
+    description = "A tar like file format name NeoFile."
     authors = [
         { name = "Kazuhika Kitsune-chan", email = "kazuki.suzuki.fox@gmail.com" },
         { name = "Kazuhana Neko-chan", email = "kazuki.suzuki.cat@gmail.com" },
