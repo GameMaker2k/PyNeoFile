@@ -64,7 +64,7 @@ pymodule['verdate'] = str(setuppy_dateinfo_exp[0])+"." + \
 pymodule['verdaterc'] = int(setuppy_dateinfo_exp[4])
 pymodule['verdatelist'] = (int(setuppy_dateinfo_exp[0]), int(setuppy_dateinfo_exp[1]), int(
     setuppy_dateinfo_exp[2]), str(setuppy_dateinfo_exp[3]), int(setuppy_dateinfo_exp[4]))
-pymodule['name'] = 'PyArchiveFile'
+pymodule['name'] = 'PyNeoFile'
 pymodule['author'] = 'Kazuhana Neko-chan'
 pymodule['authoremail'] = 'kazuki.suzuki.cat@gmail.com'
 pymodule['maintainer'] = 'Kazuhika Kitsune-chan'
