@@ -853,15 +853,6 @@ try:
     compressionsupport.append("lz4")
 except ImportError:
     pass
-'''
-try:
-    import lzo
-    compressionsupport.append("lzo")
-    compressionsupport.append("lzop")
-except ImportError:
-    lzo = None
-    pass
-'''
 try:
     try:
         import compression.zstd as zstd
@@ -925,13 +916,6 @@ if('lzo' in compressionsupport):
     compressionlistalt.append('lzo')
     outextlist.append('lzo')
     outextlistwd.append('.lzo')
-'''
-if('lzop' in compressionsupport):
-    compressionlist.append('lzop')
-    compressionlistalt.append('lzop')
-    outextlist.append('lzop')
-    outextlistwd.append('.lzop')
-'''
 if('lzma' in compressionsupport):
     compressionlist.append('lzma')
     compressionlistalt.append('lzma')
@@ -8998,8 +8982,6 @@ def CheckCompressionSubType(infile, formatspecs=__file_format_multi_dict__, file
             compresscheck = "zstd"
         elif(fextname == ".lz4"):
             compresscheck = "lz4"
-        elif(fextname == ".lzo" or fextname == ".lzop"):
-            compresscheck = "lzo"
         elif(fextname == ".lzma"):
             compresscheck = "lzma"
         elif(fextname == ".xz"):
@@ -9291,8 +9273,6 @@ def UncompressString(infile, formatspecs=__file_format_multi_dict__, filestart=0
         fileuz = decompressor.decompress(infile)
     elif(compresscheck == "lz4" and compresscheck in compressionsupport):
         fileuz = lz4.frame.decompress(infile)
-    elif((compresscheck == "lzo" or compresscheck == "lzop") and compresscheck in compressionsupport):
-        fileuz = lzo.decompress(infile)
     elif((compresscheck == "lzma" or compresscheck == "xz") and compresscheck in compressionsupport):
         fileuz = lzma.decompress(infile)
     elif(compresscheck == "zlib" and compresscheck in compressionsupport):
@@ -9343,8 +9323,6 @@ def UncompressBytes(infile, formatspecs=__file_format_multi_dict__, filestart=0)
         fileuz = decompressor.decompress(infile)
     elif(compresscheck == "lz4" and compresscheck in compressionsupport):
         fileuz = lz4.frame.decompress(infile)
-    elif((compresscheck == "lzo" or compresscheck == "lzop") and compresscheck in compressionsupport):
-        fileuz = lzo.decompress(infile)
     elif((compresscheck == "lzma" or compresscheck == "xz") and compresscheck in compressionsupport):
         fileuz = lzma.decompress(infile)
     elif(compresscheck == "zlib" and compresscheck in compressionsupport):
@@ -9916,9 +9894,6 @@ def CompressOpenFileAlt(fp, compression="auto", compressionlevel=None,
         elif compression == "lz4" and "lz4" in compressionsupport:
             bytesfp = MkTempFile()
             bytesfp.write(lz4.frame.compress(fp.read(), compression_level=_lvl(compressionlevel)))
-        elif (compression in ("lzo", "lzop")) and "lzop" in compressionsupport:
-            bytesfp = MkTempFile()
-            bytesfp.write(lzo.compress(fp.read(), _lvl(compressionlevel)))
         elif compression == "zstd" and "zstandard" in compressionsupport:
             bytesfp = MkTempFile()
             level = _lvl(compressionlevel)
@@ -10293,10 +10268,8 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
                 compresscheck = "bzip2"
             elif(fextname == ".zst"):
                 compresscheck = "zstd"
-            elif(fextname == ".lz4" or fextname == ".clz4"):
+            elif(fextname == ".lz4"):
                 compresscheck = "lz4"
-            elif(fextname == ".lzo" or fextname == ".lzop"):
-                compresscheck = "lzo"
             elif(fextname == ".lzma"):
                 compresscheck = "lzma"
             elif(fextname == ".xz"):
