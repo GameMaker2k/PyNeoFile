@@ -6855,7 +6855,9 @@ def AppendFilesWithContentFromTarFileToList(infile, extradata=[], jsondata={}, c
     inodetofile = {}
     filetoinode = {}
     inodetoforminode = {}
-    if(not isinstance(infile, (list, tuple, )) and infile == "-"):
+    if(isinstance(infile, (list, tuple, ))):
+        infile = infile[0]
+    if(infile == "-"):
         infile = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, infile, length=__filebuff_size__)
         infile.seek(0, 0)
@@ -7081,7 +7083,9 @@ def AppendFilesWithContentFromZipFileToList(infile, extradata=[], jsondata={}, c
     inodetofile = {}
     filetoinode = {}
     inodetoforminode = {}
-    if(not isinstance(infile, (list, tuple, )) and infile == "-"):
+    if(isinstance(infile, (list, tuple, ))):
+        infile = infile[0]
+    if(infile == "-"):
         infile = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, infile, length=__filebuff_size__)
         infile.seek(0, 0)
@@ -7330,6 +7334,8 @@ else:
         inodetofile = {}
         filetoinode = {}
         inodetoforminode = {}
+        if(isinstance(infile, (list, tuple, ))):
+            infile = infile[0]
         if(not os.path.exists(infile) or not os.path.isfile(infile)):
             return False
         if(not rarfile.is_rarfile(infile) and not rarfile.is_rarfile_sfx(infile)):
@@ -7611,6 +7617,8 @@ else:
         inodetofile = {}
         filetoinode = {}
         inodetoforminode = {}
+        if(isinstance(infile, (list, tuple, ))):
+            infile = infile[0]
         if(not os.path.exists(infile) or not os.path.isfile(infile)):
             return False
         szpfp = py7zr.SevenZipFile(infile, mode="r")
@@ -10240,7 +10248,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
         if(not fp):
             return False
         fp.seek(filestart, 0)
-    elif(not isinstance(infile, (list, tuple, )) and infile == "-"):
+    elif(infile == "-"):
         fp = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, fp, length=__filebuff_size__)
         fp.seek(filestart, 0)
@@ -11619,7 +11627,9 @@ def NeoFileStringListFiles(instr, filestart=0, seekstart=0, seekend=0, skipcheck
 
 
 def TarFileListFiles(infile, formatspecs=__file_format_multi_dict__, verbose=False, returnfp=False):
-    if(not isinstance(infile, (list, tuple, )) and infile == "-"):
+    if(isinstance(infile, (list, tuple, ))):
+        infile = infile[0]
+    if(infile == "-"):
         infile = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, infile, length=__filebuff_size__)
         infile.seek(0, 0)
@@ -11739,7 +11749,9 @@ def TarFileListFile(infile, formatspecs=__file_format_multi_dict__, verbose=Fals
 
 
 def ZipFileListFiles(infile, verbose=False, returnfp=False):
-    if(not isinstance(infile, (list, tuple, )) and infile == "-"):
+    if(isinstance(infile, (list, tuple, ))):
+        infile = infile[0]
+    if(infile == "-"):
         infile = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, infile, length=__filebuff_size__)
         infile.seek(0, 0)
@@ -11896,9 +11908,10 @@ def ZipFileListFile(infile, verbose=False, returnfp=False):
 if(not rarfile_support):
     def RarFileListFiles(infile, verbose=False, returnfp=False):
         return False
-
-if(rarfile_support):
+else:
     def RarFileListFiles(infile, verbose=False, returnfp=False):
+        if(isinstance(infile, (list, tuple, ))):
+            infile = infile[0]
         if(not os.path.exists(infile) or not os.path.isfile(infile)):
             return False
         if(not rarfile.is_rarfile(infile) and not rarfile.is_rarfile_sfx(infile)):
@@ -12028,9 +12041,10 @@ def RarFileListFile(infile, verbose=False, returnfp=False):
 if(not py7zr_support):
     def SevenZipFileListFiles(infile, verbose=False, returnfp=False):
         return False
-
-if(py7zr_support):
+else:
     def SevenZipFileListFiles(infile, verbose=False, returnfp=False):
+        if(isinstance(infile, (list, tuple, ))):
+            infile = infile[0]
         if(not os.path.exists(infile) or not os.path.isfile(infile)):
             return False
         lcfi = 0
