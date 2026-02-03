@@ -22,7 +22,7 @@ import os
 import sys
 import logging
 import argparse
-import pyneofile
+import pyneofile_py3 as pyneofile
 import binascii
 
 # Text streams (as provided by Python)
