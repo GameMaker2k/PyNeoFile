@@ -1,71 +1,64 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""archivefile.py (Python 3 only)
+"""neofile.py (Python 3 only)
 
-This script is part of the archivefile/pyarchivefile project.
+CLI wrapper for the pyneofile module.
 
-This refactor removes Python 2 compatibility code paths while preserving the
-original CLI behavior and wiring into `pyarchivefile`.
+This version keeps the original CLI behavior and call wiring, while removing
+Python 2 compatibility remnants and tightening a few small implementation details.
 """
+
+from __future__ import annotations
 
 import argparse
 import binascii
 import logging
 import os
 import sys
-from io import BytesIO, StringIO  # noqa: F401  (kept for parity with original)
+from io import BytesIO
+from typing import Optional, Dict, Any
 
-import pyarchivefile
-
-# Text streams (as provided by Python)
-PY_STDIN_TEXT = sys.stdin
-PY_STDOUT_TEXT = sys.stdout
-PY_STDERR_TEXT = sys.stderr
-
-# Binary-friendly streams (.buffer exists on Python 3 text streams)
-PY_STDIN_BUF = sys.stdin.buffer
-PY_STDOUT_BUF = sys.stdout.buffer
-PY_STDERR_BUF = sys.stderr.buffer
+import pyneofile_py3 as pyneofile
 
 # Keep original behavior: log to stdout with simple message format.
-logging.basicConfig(format="%(message)s", stream=PY_STDOUT_TEXT, level=logging.DEBUG)
+logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.DEBUG)
 
-# Unix SIGPIPE handling (matches original intent: exit cleanly on broken pipe)
+# Unix SIGPIPE handling (exit cleanly on broken pipe).
 if os.name != "nt":
     import signal
 
     if hasattr(signal, "SIGPIPE"):
 
-        def _sigpipe_handler(signum, frame):
-            pyarchivefile.VerbosePrintOut("Received SIGPIPE, exiting gracefully.", "info")
+        def _sigpipe_handler(signum, frame):  # noqa: ARG001
+            pyneofile.VerbosePrintOut("Received SIGPIPE, exiting gracefully.", "info")
             raise SystemExit(0)
 
         signal.signal(signal.SIGPIPE, _sigpipe_handler)
 
 # Feature flags (re-exported from module; kept for CLI parity)
-rarfile_support = pyarchivefile.rarfile_support
-py7zr_support = pyarchivefile.py7zr_support
+rarfile_support = pyneofile.rarfile_support
+py7zr_support = pyneofile.py7zr_support
 
-# Re-export metadata/constants from `pyarchivefile` (kept for --version, defaults, etc.)
-__project__ = pyarchivefile.__project__
-__program_name__ = pyarchivefile.__program_name__
-__file_format_name__ = pyarchivefile.__file_format_name__
-__file_format_magic__ = pyarchivefile.__file_format_magic__
-__file_format_len__ = pyarchivefile.__file_format_len__
-__file_format_hex__ = pyarchivefile.__file_format_hex__
-__file_format_delimiter__ = pyarchivefile.__file_format_delimiter__
-__file_format_dict__ = pyarchivefile.__file_format_dict__
-__file_format_default__ = pyarchivefile.__file_format_default__
-__file_format_multi_dict__ = pyarchivefile.__file_format_multi_dict__
-__use_new_style__ = pyarchivefile.__use_new_style__
-__use_advanced_list__ = pyarchivefile.__use_advanced_list__
-__use_alt_inode__ = pyarchivefile.__use_alt_inode__
-__project_url__ = pyarchivefile.__project_url__
-__version_info__ = pyarchivefile.__version_info__
-__version_date_info__ = pyarchivefile.__version_date_info__
-__version_date__ = pyarchivefile.__version_date__
-__version_date_plusrc__ = pyarchivefile.__version_date_plusrc__
-__version__ = pyarchivefile.__version__
+# Re-export metadata/constants from `pyneofile` (kept for --version, defaults, etc.)
+__project__ = pyneofile.__project__
+__program_name__ = pyneofile.__program_name__
+__file_format_name__ = pyneofile.__file_format_name__
+__file_format_magic__ = pyneofile.__file_format_magic__
+__file_format_len__ = pyneofile.__file_format_len__
+__file_format_hex__ = pyneofile.__file_format_hex__
+__file_format_delimiter__ = pyneofile.__file_format_delimiter__
+__file_format_dict__ = pyneofile.__file_format_dict__
+__file_format_default__ = pyneofile.__file_format_default__
+__file_format_multi_dict__ = pyneofile.__file_format_multi_dict__
+__use_new_style__ = pyneofile.__use_new_style__
+__use_advanced_list__ = pyneofile.__use_advanced_list__
+__use_alt_inode__ = pyneofile.__use_alt_inode__
+__project_url__ = pyneofile.__project_url__
+__version_info__ = pyneofile.__version_info__
+__version_date_info__ = pyneofile.__version_date_info__
+__version_date__ = pyneofile.__version_date__
+__version_date_plusrc__ = pyneofile.__version_date_plusrc__
+__version__ = pyneofile.__version__
 
 
 def _build_argparser() -> argparse.ArgumentParser:
@@ -91,7 +84,7 @@ def _build_argparser() -> argparse.ArgumentParser:
     # Operations
     p.add_argument("-c", "--create", action="store_true", help="Perform only the concatenation operation.")
     p.add_argument("-e", "--extract", action="store_true", help="Perform only the extraction operation.")
-    p.add_argument("-t", "--convert", action="store_true", help="Convert a tar/zip/rar/7zip file to a archive file.")
+    p.add_argument("-t", "--convert", action="store_true", help="Convert a tar/zip/rar/7zip file to an archive file.")
     p.add_argument("-r", "--repack", action="store_true", help="Re-concatenate files, fixing checksum errors if any.")
     p.add_argument("-S", "--filestart", type=int, default=0, help="Start reading file at.")
 
@@ -128,7 +121,7 @@ def _build_argparser() -> argparse.ArgumentParser:
     return p
 
 
-def _resolve_format(getargs):
+def _resolve_format(getargs: argparse.Namespace) -> Any:
     """Compute the format dict exactly as the original script did."""
     global __file_format_default__  # keep parity with original module-level behavior
 
@@ -158,7 +151,7 @@ def _resolve_format(getargs):
     return fnamedict
 
 
-def main(argv=None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     argparser = _build_argparser()
     getargs = argparser.parse_args(argv)
 
@@ -174,22 +167,21 @@ def main(argv=None) -> int:
         # Preserve original behavior: do nothing if no action flag is set.
         return 0
 
-    # Execute the appropriate functions based on determined actions and arguments
     if active_action == "create":
         if getargs.convert:
-            checkcompressfile = pyarchivefile.CheckCompressionSubType(input_file, fnamedict, 0, True)
+            checkcompressfile = pyneofile.CheckCompressionSubType(input_file, fnamedict, 0, True)
             if (
-                (pyarchivefile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
-                or (pyarchivefile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
+                (pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
+                or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
             ):
-                tmpout = pyarchivefile.RePackArchiveFile(
+                tmpout = pyneofile.RePackNeoFile(
                     input_file,
                     getargs.output,
                     "auto",
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     False,
                     0,
                     0,
@@ -206,14 +198,14 @@ def main(argv=None) -> int:
                     False,
                 )
             else:
-                tmpout = pyarchivefile.PackArchiveFileFromInFile(
+                tmpout = pyneofile.PackNeoFileFromInFile(
                     input_file,
                     getargs.output,
                     __file_format_default__,
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     [getargs.checksum] * 5,
                     [],
                     {},
@@ -225,7 +217,7 @@ def main(argv=None) -> int:
             if not tmpout:
                 return 1
         else:
-            pyarchivefile.PackArchiveFile(
+            pyneofile.PackNeoFile(
                 getargs.input,
                 getargs.output,
                 getargs.text,
@@ -233,7 +225,7 @@ def main(argv=None) -> int:
                 getargs.compression,
                 getargs.wholefile,
                 getargs.level,
-                pyarchivefile.compressionlistalt,
+                pyneofile.compressionlistalt,
                 False,
                 [getargs.checksum] * 5,
                 [],
@@ -246,20 +238,19 @@ def main(argv=None) -> int:
 
     elif active_action == "repack":
         if getargs.convert:
-            checkcompressfile = pyarchivefile.CheckCompressionSubType(input_file, fnamedict, 0, True)
+            checkcompressfile = pyneofile.CheckCompressionSubType(input_file, fnamedict, 0, True)
             if (
-                (pyarchivefile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
-                or (pyarchivefile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
+                (pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
+                or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
             ):
-                # NOTE: original script forgot to store the return value (tmpout) here.
-                tmpout = pyarchivefile.RePackArchiveFile(
+                tmpout = pyneofile.RePackNeoFile(
                     input_file,
                     getargs.output,
                     "auto",
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     False,
                     0,
                     0,
@@ -276,14 +267,14 @@ def main(argv=None) -> int:
                     False,
                 )
             else:
-                tmpout = pyarchivefile.PackArchiveFileFromInFile(
+                tmpout = pyneofile.PackNeoFileFromInFile(
                     input_file,
                     getargs.output,
                     __file_format_default__,
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     [getargs.checksum] * 5,
                     [],
                     {},
@@ -295,14 +286,14 @@ def main(argv=None) -> int:
             if not tmpout:
                 return 1
         else:
-            pyarchivefile.RePackArchiveFile(
+            pyneofile.RePackNeoFile(
                 input_file,
                 getargs.output,
                 "auto",
                 getargs.compression,
                 getargs.wholefile,
                 getargs.level,
-                pyarchivefile.compressionlistalt,
+                pyneofile.compressionlistalt,
                 False,
                 getargs.filestart,
                 0,
@@ -321,20 +312,20 @@ def main(argv=None) -> int:
 
     elif active_action == "extract":
         if getargs.convert:
-            checkcompressfile = pyarchivefile.CheckCompressionSubType(input_file, fnamedict, 0, True)
+            checkcompressfile = pyneofile.CheckCompressionSubType(input_file, fnamedict, 0, True)
             tempout = BytesIO()
             if (
-                (pyarchivefile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
-                or (pyarchivefile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
+                (pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
+                or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
             ):
-                tmpout = pyarchivefile.RePackArchiveFile(
+                tmpout = pyneofile.RePackNeoFile(
                     input_file,
                     tempout,
                     "auto",
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     False,
                     0,
                     0,
@@ -350,14 +341,14 @@ def main(argv=None) -> int:
                     False,
                 )
             else:
-                tmpout = pyarchivefile.PackArchiveFileFromInFile(
+                tmpout = pyneofile.PackNeoFileFromInFile(
                     input_file,
                     tempout,
                     __file_format_default__,
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     [getargs.checksum] * 5,
                     [],
                     {},
@@ -370,7 +361,7 @@ def main(argv=None) -> int:
                 return 1
             input_file = tempout
 
-        pyarchivefile.UnPackArchiveFile(
+        pyneofile.UnPackNeoFile(
             input_file,
             getargs.output,
             False,
@@ -388,12 +379,12 @@ def main(argv=None) -> int:
 
     elif active_action == "list":
         if getargs.convert:
-            checkcompressfile = pyarchivefile.CheckCompressionSubType(input_file, fnamedict, 0, True)
+            checkcompressfile = pyneofile.CheckCompressionSubType(input_file, fnamedict, 0, True)
             if (
-                (pyarchivefile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
-                or (pyarchivefile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
+                (pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
+                or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
             ):
-                tmpout = pyarchivefile.ArchiveFileListFiles(
+                tmpout = pyneofile.NeoFileListFiles(
                     input_file,
                     "auto",
                     getargs.filestart,
@@ -408,7 +399,7 @@ def main(argv=None) -> int:
                     False,
                 )
             else:
-                tmpout = pyarchivefile.InFileListFiles(
+                tmpout = pyneofile.InFileListFiles(
                     input_file,
                     getargs.verbose,
                     fnamedict,
@@ -420,7 +411,7 @@ def main(argv=None) -> int:
             if not tmpout:
                 return 1
         else:
-            pyarchivefile.ArchiveFileListFiles(
+            pyneofile.NeoFileListFiles(
                 input_file,
                 "auto",
                 getargs.filestart,
@@ -437,20 +428,20 @@ def main(argv=None) -> int:
 
     elif active_action == "validate":
         if getargs.convert:
-            checkcompressfile = pyarchivefile.CheckCompressionSubType(input_file, fnamedict, 0, True)
+            checkcompressfile = pyneofile.CheckCompressionSubType(input_file, fnamedict, 0, True)
             tempout = BytesIO()
             if (
-                (pyarchivefile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
-                or (pyarchivefile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
+                (pyneofile.IsNestedDict(fnamedict) and checkcompressfile in fnamedict)
+                or (pyneofile.IsSingleDict(fnamedict) and checkcompressfile == fnamedict["format_magic"])
             ):
-                tmpout = pyarchivefile.RePackArchiveFile(
+                tmpout = pyneofile.RePackNeoFile(
                     input_file,
                     tempout,
                     "auto",
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     False,
                     0,
                     0,
@@ -467,14 +458,14 @@ def main(argv=None) -> int:
                     False,
                 )
             else:
-                tmpout = pyarchivefile.PackArchiveFileFromInFile(
+                tmpout = pyneofile.PackNeoFileFromInFile(
                     input_file,
                     tempout,
                     __file_format_default__,
                     getargs.compression,
                     getargs.wholefile,
                     getargs.level,
-                    pyarchivefile.compressionlistalt,
+                    pyneofile.compressionlistalt,
                     [getargs.checksum] * 5,
                     [],
                     {},
@@ -488,7 +479,7 @@ def main(argv=None) -> int:
             if not tmpout:
                 return 1
 
-        fvalid = pyarchivefile.StackedArchiveFileValidate(
+        fvalid = pyneofile.StackedNeoFileValidate(
             input_file,
             "auto",
             getargs.filestart,
@@ -499,9 +490,9 @@ def main(argv=None) -> int:
             False,
         )
         if fvalid:
-            pyarchivefile.VerbosePrintOut("File is valid: \n" + str(input_file))
+            pyneofile.VerbosePrintOut("File is valid: \n" + str(input_file))
         else:
-            pyarchivefile.VerbosePrintOut("File is invalid: \n" + str(input_file))
+            pyneofile.VerbosePrintOut("File is invalid: \n" + str(input_file))
 
     return 0
 
