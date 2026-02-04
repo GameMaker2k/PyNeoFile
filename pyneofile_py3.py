@@ -426,8 +426,8 @@ def add_format(reg, key, magic, ext, name=None, ver="001",
         "format_extension": ext,
     }
 
-__upload_proto_support__ = "^(http|https|ftp|tftp|ftps|sftp|scp|tcp|udp|data|file|bt|rfcomm|bluetooth)://"
-__download_proto_support__ = "^(http|https|ftp|tftp|ftps|sftp|scp|tcp|udp|data|file|bt|rfcomm|bluetooth)://"
+__upload_proto_support__ = "^(http|https|ftp|ftps|sftp|scp|tcp|udp|data|file|bt|rfcomm|bluetooth|unix|unixdgram)://"
+__download_proto_support__ = "^(http|https|ftp|ftps|sftp|scp|tcp|udp|data|file|bt|rfcomm|bluetooth|unix|unixdgram)://"
 __use_pysftp__ = False
 if(not havepysftp):
     __use_pysftp__ = False
@@ -8434,7 +8434,7 @@ def CheckCompressionType(infile, formatspecs=__file_format_multi_dict__, filesta
 def CheckCompressionSubType(infile, formatspecs=__file_format_multi_dict__, filestart=0, closefp=True):
     compresscheck = CheckCompressionType(infile, formatspecs, filestart, False)
     curloc = filestart
-    if(not compresscheck and isinstance(infile, (str, bytes, os.PathLike))):
+    if(not compresscheck):
         fextname = os.path.splitext(infile)[1]
         if(fextname == ".gz"):
             compresscheck = "gzip"
@@ -14244,35 +14244,97 @@ def _resolve_wait_timeout(scheme, mode, o):
         return None
     return o.get("timeout", None)
 
+_UNIX_STREAM_SCHEMES = {"unix", "unixstream"}
+_UNIX_DGRAM_SCHEMES  = {"unixdgram", "unixgram", "unix_datagram"}
+_UNIX_SCHEMES = _UNIX_STREAM_SCHEMES | _UNIX_DGRAM_SCHEMES
+
+
+def _safe_unlink(path: str):
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
+def _tmp_unix_client_path(prefix="pwg4-client-", dir="/tmp") -> str:
+    # For UNIX datagrams, client MUST bind to a unique path to receive READY/ACK
+    fd, p = tempfile.mkstemp(prefix=prefix, suffix=".sock", dir=dir)
+    os.close(fd)
+    _safe_unlink(p)  # remove the file so bind() can create a socket there
+    return p
+
+
+def _unix_path_from_parts(parts, o, fallback_port=0) -> str:
+    # allow overrides via query: ?unix_path=/tmp/x.sock or ?path=/tmp/x.sock
+    p = o.get("unix_path") or o.get("path")
+    if p:
+        return str(p)
+    # normal: unix:///tmp/x.sock
+    if getattr(parts, "path", None):
+        return unquote(parts.path)
+    return f"/tmp/pwg4-{int(fallback_port)}.sock"
+
 def _parse_net_url(url):
     p = urlparse(url)
     qs = parse_qs(p.query or "")
-    mode = _qstr(qs, "mode", "seq" if p.scheme == "udp" else "raw").lower()
+
+    is_udpish = (p.scheme == "udp") or (p.scheme in _UNIX_DGRAM_SCHEMES)
+    is_tcpish = (p.scheme == "tcp") or (p.scheme in _UNIX_STREAM_SCHEMES)
+
+    # mode default
+    if p.scheme in _UNIX_DGRAM_SCHEMES:
+        mode_default = "raw"
+    else:
+        mode_default = "seq" if p.scheme == "udp" else "raw"
+
+    mode = _qstr(qs, "mode", mode_default).lower()
+
     has_timeout = "timeout" in qs
-    if p.scheme == "tcp" and not has_timeout:
+    if is_tcpish and not has_timeout:
         timeout = None
     else:
-        timeout = float(_qnum(qs, "timeout", 1.0 if p.scheme == "udp" else 30.0, cast=float))
-    accept_timeout = float(_qnum(qs, "accept_timeout", 0.0 if p.scheme == "tcp" else (timeout or 0.0), cast=float))
+        timeout = float(_qnum(qs, "timeout", 1.0 if is_udpish else 30.0, cast=float))
+
+    accept_timeout = float(_qnum(
+        qs, "accept_timeout",
+        0.0 if is_tcpish else (timeout or 0.0),
+        cast=float
+    ))
+
     total_timeout = float(_qnum(qs, "total_timeout", 0.0, cast=float))
     window = int(_qnum(qs, "window", 32, cast=int))
     retries = int(_qnum(qs, "retries", 20, cast=int))
-    chunk = int(_qnum(qs, "chunk", 1200 if p.scheme == "udp" else 65536, cast=int))
+
+    chunk_default = 1200 if is_udpish else 65536
+    chunk = int(_qnum(qs, "chunk", chunk_default, cast=int))
+
     print_url = _qflag(qs, "print_url", False)
+
     if "wait" in qs:
         wait = _qflag(qs, "wait", False)
     else:
-        wait = (p.scheme == "udp" and mode == "raw")
+        wait = (is_udpish and mode == "raw")
+
     if "connect_wait" in qs:
         connect_wait = _qflag(qs, "connect_wait", False)
     else:
-        connect_wait = (p.scheme == "tcp")
-    handshake = _qflag(qs, "handshake", True if p.scheme in ("tcp","udp") else False)
+        connect_wait = is_tcpish
+
+    handshake_default = True if (p.scheme in ("tcp", "udp") or p.scheme in _UNIX_SCHEMES) else False
+    handshake = _qflag(qs, "handshake", handshake_default)
+
     hello_interval = float(_qnum(qs, "hello_interval", 0.1, cast=float))
     wait_timeout = _qnum(qs, "wait_timeout", None, cast=float)
     wait_forever = _qflag(qs, "wait_forever", False)
     verbose = _qflag(qs, "verbose", False) or _qflag(qs, "debug", False)
+
+    # bind:
+    # - tcp/udp: local bind interface
+    # - unixdgram: OPTIONAL client bind path (so sender can receive READY/ACK); if not set we make a temp path
     bind = _qstr(qs, "bind", None)
+
     resume = _qflag(qs, "resume", False)
     resume_to = _qstr(qs, "resume_to", None)
     save = _qflag(qs, "save", False)
@@ -14282,6 +14344,7 @@ def _parse_net_url(url):
     done_token = _qstr(qs, "done_token", None)
     framing = _qstr(qs, "framing", None)
     sha256 = _qflag(qs, "sha256", False) or _qflag(qs, "sha", False)
+
     raw_meta = _qflag(qs, "raw_meta", True)
     raw_ack = _qflag(qs, "raw_ack", False)
     raw_ack_timeout = _qnum(qs, "raw_ack_timeout", 0.5, cast=float)
@@ -14291,6 +14354,8 @@ def _parse_net_url(url):
         raw_ack_window = 1
     raw_sha = _qflag(qs, "raw_sha", False)
     raw_hash = _qstr(qs, "raw_hash", "sha256")
+
+    unix_path = _qstr(qs, "unix_path", None) or _qstr(qs, "path", None)
 
     return p, {
         "mode": mode,
@@ -14325,7 +14390,9 @@ def _parse_net_url(url):
         "raw_ack_window": raw_ack_window,
         "raw_sha": raw_sha,
         "raw_hash": raw_hash,
+        "unix_path": unix_path,
     }
+
 # --- Bluetooth RFCOMM helpers -------------------------------------------------
 # Notes:
 # - URLs use the "bt", "rfcomm", or "bluetooth" schemes.
@@ -14459,7 +14526,7 @@ def recv_to_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs):
     if "framing" not in kwargs and "frame" in kwargs:
         kwargs["framing"] = kwargs.get("frame")
 
-    if proto == "tcp" or proto in _BT_SCHEMES:
+    if proto == "tcp" or proto in _BT_SCHEMES or proto in _UNIX_STREAM_SCHEMES:
         is_bt = proto in _BT_SCHEMES
 
         # --- Boolean normalization (BT has different safe defaults) ---
@@ -14546,24 +14613,44 @@ def recv_to_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs):
                     pass
 
         else:
-            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            except Exception:
-                pass
-            srv.bind((host or "", port))
-            srv.listen(1)
-
-            chosen_port = srv.getsockname()[1]
-            if kwargs.get("print_url"):
-                path = path_text or "/"
-                bind_host = host or "0.0.0.0"
-                for u in _listen_urls("tcp", bind_host, chosen_port, path, ""):
-                    _emit("Listening: %s" % u, logger=logger, level=logging.INFO, stream="stdout")
+            if proto in _UNIX_STREAM_SCHEMES:
+                unix_path = kwargs.get("unix_path") or host
+                srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 try:
-                    sys.stdout.flush()
+                    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 except Exception:
                     pass
+                _safe_unlink(unix_path)
+                srv.bind(unix_path)
+                srv.listen(1)
+
+                chosen_port = 0
+                if kwargs.get("print_url"):
+                    _emit(f"Listening: unix://{unix_path}",
+                          logger=logger, level=logging.INFO, stream="stdout")
+                    try:
+                        sys.stdout.flush()
+                    except Exception:
+                        pass
+            else:
+                srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                except Exception:
+                    pass
+                srv.bind((host or "", port))
+                srv.listen(1)
+
+                chosen_port = srv.getsockname()[1]
+                if kwargs.get("print_url"):
+                    path = path_text or "/"
+                    bind_host = host or "0.0.0.0"
+                    for u in _listen_urls("tcp", bind_host, chosen_port, path, ""):
+                        _emit("Listening: %s" % u, logger=logger, level=logging.INFO, stream="stdout")
+                    try:
+                        sys.stdout.flush()
+                    except Exception:
+                        pass
 
         # --- timeouts for accept/listen ---
         idle_to = kwargs.get("idle_timeout", None)
@@ -14795,6 +14882,9 @@ def recv_to_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs):
                 srv.close()
             except Exception:
                 pass
+            if proto in _UNIX_STREAM_SCHEMES:
+                unix_path = kwargs.get("unix_path") or host
+                _safe_unlink(unix_path)
 
         if ok:
             try:
@@ -14805,7 +14895,12 @@ def recv_to_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs):
 
     # UDP modes unchanged
     mode = (kwargs.get("mode") or "seq").lower()
-    if mode == "raw":
+    if proto in _UNIX_DGRAM_SCHEMES:
+        unix_path = kwargs.get("unix_path") or host
+        mode = (kwargs.get("mode") or "raw").lower()
+        # only raw is implemented for unix dgram here
+        return _unix_dgram_raw_recv(fileobj, unix_path, **kwargs)
+    elif mode == "raw":
         return _udp_raw_recv(fileobj, host, port, **kwargs)
     elif mode == "quic":
         return _udp_quic_recv(fileobj, host, port, **kwargs)
@@ -14821,7 +14916,7 @@ def send_from_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs
     if "framing" not in kwargs and "frame" in kwargs:
         kwargs["framing"] = kwargs.get("frame")
 
-    if proto == "tcp" or proto in _BT_SCHEMES:
+    if proto == "tcp" or proto in _BT_SCHEMES or proto in _UNIX_STREAM_SCHEMES:
         is_bt = proto in _BT_SCHEMES
 
         # --- Boolean normalization (BT has different safe defaults) ---
@@ -14866,8 +14961,13 @@ def send_from_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs
                 return False
             connect_target = (addr, int(port))
         else:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            connect_target = (host, int(port))
+            if proto in _UNIX_STREAM_SCHEMES:
+                unix_path = kwargs.get("unix_path") or host
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                connect_target = unix_path
+            else:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                connect_target = (host, int(port))
 
         try:
             to = kwargs.get("timeout", None)
@@ -15063,12 +15163,467 @@ def send_from_fileobj(fileobj, host, port, proto="tcp", path_text=None, **kwargs
 
     # UDP send path unchanged
     mode = (kwargs.get("mode") or "seq").lower()
-    if mode == "raw":
+    if proto in _UNIX_DGRAM_SCHEMES:
+        unix_path = kwargs.get("unix_path") or host
+        mode = (kwargs.get("mode") or "raw").lower()
+        # only raw is implemented for unix dgram here
+        return _unix_dgram_raw_send(fileobj, unix_path, **kwargs)
+    elif mode == "raw":
         # your existing raw sender code here (unchanged)
         return _udp_raw_send(fileobj, host, port, **kwargs) if "_udp_raw_send" in globals() else _udp_seq_send(fileobj, host, port, **kwargs)
     elif mode == "quic":
         return _udp_quic_send(fileobj, host, port, **kwargs)
     return _udp_seq_send(fileobj, host, port, **kwargs)
+
+def _unix_dgram_raw_send(fileobj, unix_server_path, **kwargs):
+    logger = _logger_from_kwargs(kwargs)
+
+    handshake = _kw_bool(kwargs.get("handshake", True), True)
+    raw_ack = _kw_bool(kwargs.get("raw_ack", False), False)
+    raw_meta = _kw_bool(kwargs.get("raw_meta", True), True)
+    raw_sha = _kw_bool(kwargs.get("raw_sha", False), False)
+    wait = _kw_bool(kwargs.get("wait", True), True) or _kw_bool(kwargs.get("connect_wait", False), False)
+    verbose = _kw_bool(kwargs.get("verbose", False), False)
+
+    def _log(msg):
+        _net_log(verbose, msg, logger=logger)
+
+    try:
+        chunk = int(kwargs.get("chunk", 1200))
+    except Exception:
+        chunk = 1200
+    if chunk < 256:
+        chunk = 256
+
+    try:
+        wt = kwargs.get("wait_timeout", None)
+        wt = float(wt) if wt is not None else None
+    except Exception:
+        wt = None
+
+    try:
+        hello_iv = float(kwargs.get("hello_interval", 0.1) or 0.1)
+    except Exception:
+        hello_iv = 0.1
+    if hello_iv <= 0:
+        hello_iv = 0.1
+
+    # ---- compute total remaining length (for META and/or HASH) ----
+    total_len = None
+    pos = None
+    if raw_meta or raw_sha:
+        try:
+            pos = fileobj.tell()
+            fileobj.seek(0, os.SEEK_END)
+            end = fileobj.tell()
+            fileobj.seek(pos, os.SEEK_SET)
+            total_len = int(end - pos)
+            if total_len < 0:
+                total_len = None
+        except Exception:
+            total_len = None
+            try:
+                if pos is not None:
+                    fileobj.seek(pos, os.SEEK_SET)
+            except Exception:
+                pass
+
+    # ---- precompute expected hash (optional) ----
+    expected_hex = None
+    raw_hash = (kwargs.get("raw_hash", "sha256") or "sha256").lower()
+    if raw_sha and total_len is not None:
+        try:
+            h = hashlib.sha256() if raw_hash != "md5" else hashlib.md5()
+            cur = fileobj.tell()
+            while True:
+                b = fileobj.read(65536)
+                if not b:
+                    break
+                h.update(_to_bytes(b))
+            expected_hex = h.hexdigest()
+            fileobj.seek(cur, os.SEEK_SET)
+        except Exception:
+            expected_hex = None
+            try:
+                if pos is not None:
+                    fileobj.seek(pos, os.SEEK_SET)
+            except Exception:
+                pass
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+
+    # IMPORTANT: client must bind its own path to receive READY/ACK
+    client_path = kwargs.get("bind") or kwargs.get("unix_client_path") or _tmp_unix_client_path()
+    _safe_unlink(client_path)
+    sock.bind(client_path)
+
+    try:
+        tok = kwargs.get("token")
+        tok = _hs_token() if tok is None else _to_bytes(tok)
+
+        if wait:
+            start_t = time.time()
+            while True:
+                if wt is not None and wt >= 0 and (time.time() - start_t) >= wt:
+                    _log("UNIX dgram raw: wait_timeout reached; no receiver READY")
+                    return False
+
+                if handshake:
+                    try:
+                        sock.sendto(b"HELLO " + tok + b"\n", unix_server_path)
+                    except Exception:
+                        pass
+
+                if raw_meta and total_len is not None:
+                    try:
+                        sock.sendto(b"META " + str(total_len).encode("ascii") + b"\n", unix_server_path)
+                    except Exception:
+                        pass
+
+                if raw_sha and expected_hex:
+                    try:
+                        sock.sendto(
+                            b"HASH " + raw_hash.encode("ascii") + b" " + expected_hex.encode("ascii") + b"\n",
+                            unix_server_path
+                        )
+                    except Exception:
+                        pass
+
+                try:
+                    sock.settimeout(hello_iv)
+                except Exception:
+                    pass
+
+                try:
+                    pkt, _a = sock.recvfrom(1024)
+                    if pkt.startswith(b"READY"):
+                        if b" " in pkt:
+                            rt = pkt.split(None, 1)[1].strip()
+                            if rt and rt != tok:
+                                continue
+                        _log("UNIX dgram raw: received READY from receiver")
+                        break
+                except socket.timeout:
+                    continue
+                except Exception:
+                    continue
+        else:
+            # if not waiting, still send META/HASH once up front
+            if handshake:
+                try:
+                    sock.sendto(b"HELLO " + tok + b"\n", unix_server_path)
+                except Exception:
+                    pass
+            if raw_meta and total_len is not None:
+                try:
+                    sock.sendto(b"META " + str(total_len).encode("ascii") + b"\n", unix_server_path)
+                except Exception:
+                    pass
+            if raw_sha and expected_hex:
+                try:
+                    sock.sendto(
+                        b"HASH " + raw_hash.encode("ascii") + b" " + expected_hex.encode("ascii") + b"\n",
+                        unix_server_path
+                    )
+                except Exception:
+                    pass
+
+        # ---- send data ----
+        if raw_ack:
+            try:
+                ack_to = float(kwargs.get("raw_ack_timeout", 0.5) or 0.5)
+            except Exception:
+                ack_to = 0.5
+            try:
+                retries_max = int(kwargs.get("raw_ack_retries", 40) or 40)
+            except Exception:
+                retries_max = 40
+            try:
+                win = int(kwargs.get("raw_ack_window", 1) or 1)
+            except Exception:
+                win = 1
+            if win < 1:
+                win = 1
+
+            try:
+                sock.settimeout(ack_to)
+            except Exception:
+                pass
+
+            def _make_pkt(seq, data):
+                return b"PKT " + str(seq).encode("ascii") + b" " + _to_bytes(data)
+
+            base_seq = 0
+            next_seq = 0
+            pkts = {}
+            eof = False
+            timeout_tries = 0
+
+            while True:
+                # fill window
+                while (not eof) and next_seq < base_seq + win:
+                    data = fileobj.read(chunk)
+                    if not data:
+                        eof = True
+                        break
+                    pkt = _make_pkt(next_seq, data)
+                    pkts[next_seq] = pkt
+                    try:
+                        sock.sendto(pkt, unix_server_path)
+                    except Exception:
+                        pass
+                    next_seq += 1
+
+                if eof and base_seq == next_seq:
+                    break
+
+                try:
+                    apkt, _a = sock.recvfrom(1024)
+                    if apkt.startswith(b"ACK "):
+                        try:
+                            aseq = int(apkt.split()[1])
+                        except Exception:
+                            aseq = -1
+                        new_base = aseq + 1
+                        if new_base > base_seq:
+                            for s in list(pkts.keys()):
+                                if s < new_base:
+                                    pkts.pop(s, None)
+                            base_seq = new_base
+                            timeout_tries = 0
+                except socket.timeout:
+                    timeout_tries += 1
+                    if retries_max >= 0 and timeout_tries >= retries_max:
+                        _log("UNIX dgram raw: too many ACK timeouts, giving up")
+                        return False
+                    # retransmit all in-flight
+                    for s in range(base_seq, next_seq):
+                        pkt = pkts.get(s)
+                        if pkt is None:
+                            continue
+                        try:
+                            sock.sendto(pkt, unix_server_path)
+                        except Exception:
+                            pass
+                except Exception:
+                    timeout_tries += 1
+
+        else:
+            # legacy raw: just send datagrams
+            while True:
+                data = fileobj.read(chunk)
+                if not data:
+                    break
+                try:
+                    sock.sendto(_to_bytes(data), unix_server_path)
+                except Exception:
+                    pass
+
+        # ---- finish ----
+        try:
+            sock.sendto(b"DONE", unix_server_path)
+        except Exception:
+            pass
+
+        return True
+
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+        _safe_unlink(client_path)
+
+def _unix_dgram_raw_recv(fileobj, unix_server_path, **kwargs):
+    logger = _logger_from_kwargs(kwargs)
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        _safe_unlink(unix_server_path)
+        sock.bind(unix_server_path)
+    except Exception:
+        try:
+            sock.close()
+        except Exception:
+            pass
+        return False
+
+    wait = _kw_bool(kwargs.get("wait", True), True) or _kw_bool(kwargs.get("connect_wait", False), False)
+    wait_timeout = kwargs.get("wait_timeout", None)
+    try:
+        wait_timeout = float(wait_timeout) if wait_timeout is not None else None
+    except Exception:
+        wait_timeout = None
+
+    raw_ack = _kw_bool(kwargs.get("raw_ack", False), False)
+    handshake = _kw_bool(kwargs.get("handshake", True), True)
+
+    want_meta = _kw_bool(kwargs.get("raw_meta", True), True)
+    want_hash = _kw_bool(kwargs.get("raw_sha", False), False)
+    raw_hash = (kwargs.get("raw_hash", "sha256") or "sha256").lower()
+
+    expected_len = None
+    expected_hash_hex = None
+
+    expected_seq = 0
+    buffered = {}
+
+    h = None
+    if want_hash:
+        try:
+            h = hashlib.sha256() if raw_hash != "md5" else hashlib.md5()
+        except Exception:
+            h = None
+
+    got_any = False
+    start_t = time.time()
+    verbose = _kw_bool(kwargs.get("verbose", False), False)
+
+    def _log(msg):
+        _net_log(verbose, msg, logger=logger)
+
+    def _sendto(bts, a):
+        try:
+            sock.sendto(bts, a)
+        except Exception:
+            pass
+
+    def _try_flush_buffer():
+        nonlocal expected_seq
+        while expected_seq in buffered:
+            data = buffered.pop(expected_seq)
+            try:
+                fileobj.write(data)
+            except Exception:
+                pass
+            if h is not None:
+                try:
+                    h.update(data)
+                except Exception:
+                    pass
+            expected_seq += 1
+
+    try:
+        try:
+            sock.settimeout(0.25 if wait else 0.0)
+        except Exception:
+            pass
+
+        while True:
+            if not got_any and wait_timeout is not None and wait_timeout >= 0:
+                if (time.time() - start_t) >= wait_timeout:
+                    return False
+
+            try:
+                pkt, a = sock.recvfrom(65536)
+            except socket.timeout:
+                continue
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                return False
+
+            if not pkt:
+                continue
+
+            got_any = True
+
+            # HELLO/READY
+            if handshake and pkt.startswith(b"HELLO "):
+                tok = pkt.split(None, 1)[1].strip()
+                _log(f"UNIX dgram raw: got HELLO from {a}")
+                _sendto(b"READY " + tok + b"\n", a)
+                continue
+
+            # META
+            if want_meta and pkt.startswith(b"META "):
+                try:
+                    expected_len = int(pkt.split(None, 1)[1].strip())
+                    _log(f"UNIX dgram raw: got META len={expected_len}")
+                except Exception:
+                    pass
+                continue
+
+            # HASH
+            if want_hash and pkt.startswith(b"HASH "):
+                try:
+                    parts = pkt.strip().split()
+                    if len(parts) >= 3:
+                        expected_hash_hex = parts[2].decode("ascii", "ignore").lower()
+                        _log("UNIX dgram raw: got HASH")
+                except Exception:
+                    pass
+                continue
+
+            # DONE
+            if pkt.startswith(b"DONE"):
+                _log("UNIX dgram raw: got DONE")
+                _try_flush_buffer()
+
+                if expected_len is not None:
+                    try:
+                        cur = fileobj.tell()
+                        ok_len = (int(cur) == int(expected_len))
+                    except Exception:
+                        ok_len = True
+                else:
+                    ok_len = True
+
+                ok_hash = True
+                if expected_hash_hex and h is not None:
+                    try:
+                        ok_hash = (h.hexdigest().lower() == expected_hash_hex.lower())
+                    except Exception:
+                        ok_hash = True
+
+                return bool(ok_len and ok_hash)
+
+            # ACK-framed packets
+            if raw_ack and pkt.startswith(b"PKT "):
+                try:
+                    sp1 = pkt.find(b" ")
+                    sp2 = pkt.find(b" ", sp1 + 1)
+                    seq = int(pkt[sp1 + 1:sp2])
+                    data = pkt[sp2 + 1:]
+                except Exception:
+                    continue
+
+                _sendto(b"ACK " + str(seq).encode("ascii") + b"\n", a)
+
+                if seq < expected_seq:
+                    continue
+
+                if seq == expected_seq:
+                    try:
+                        fileobj.write(data)
+                    except Exception:
+                        pass
+                    if h is not None:
+                        try:
+                            h.update(data)
+                        except Exception:
+                            pass
+                    expected_seq += 1
+                    _try_flush_buffer()
+                else:
+                    if seq not in buffered:
+                        buffered[seq] = data
+                continue
+
+            # legacy payload
+            try:
+                fileobj.write(_to_bytes(pkt))
+                if h is not None:
+                    h.update(_to_bytes(pkt))
+            except Exception:
+                pass
+
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+        _safe_unlink(unix_server_path)
 
 def _udp_raw_recv(fileobj, host, port, **kwargs):
     logger = _logger_from_kwargs(kwargs)
@@ -15280,267 +15835,6 @@ def _udp_raw_recv(fileobj, host, port, **kwargs):
                     h.update(_to_bytes(pkt))
             except Exception:
                 pass
-
-    finally:
-        try:
-            sock.close()
-        except Exception:
-            pass
-
-def _udp_raw_send(fileobj, host, port, **kwargs):
-    logger = _logger_from_kwargs(kwargs)
-    addr = (host or "127.0.0.1", int(port))
-
-    # ---- normalize bool-ish flags (URL query values may be strings) ----
-    handshake = _kw_bool(kwargs.get("handshake", True), True)
-    raw_ack = _kw_bool(kwargs.get("raw_ack", False), False)
-    raw_meta = _kw_bool(kwargs.get("raw_meta", True), True)
-    raw_sha = _kw_bool(kwargs.get("raw_sha", False), False)
-    wait = _kw_bool(kwargs.get("wait", True), True) or _kw_bool(kwargs.get("connect_wait", False), False)
-
-    verbose = _kw_bool(kwargs.get("verbose", False), False)
-
-    def _log(msg):
-        _net_log(verbose, msg, logger=logger)
-
-    # ---- numeric params ----
-    try:
-        chunk = int(kwargs.get("chunk", 1200))
-    except Exception:
-        chunk = 1200
-    if chunk < 256:
-        chunk = 256
-
-    try:
-        wt = kwargs.get("wait_timeout", None)
-        wt = float(wt) if wt is not None else None
-    except Exception:
-        wt = None
-
-    try:
-        hello_iv = float(kwargs.get("hello_interval", 0.1) or 0.1)
-    except Exception:
-        hello_iv = 0.1
-    if hello_iv <= 0:
-        hello_iv = 0.1
-
-    # ---- compute total remaining length (for META and/or HASH) ----
-    total_len = None
-    pos = None
-    if raw_meta or raw_sha:
-        try:
-            pos = fileobj.tell()
-            fileobj.seek(0, os.SEEK_END)
-            end = fileobj.tell()
-            fileobj.seek(pos, os.SEEK_SET)
-            total_len = int(end - pos)
-            if total_len < 0:
-                total_len = None
-        except Exception:
-            total_len = None
-            try:
-                if pos is not None:
-                    fileobj.seek(pos, os.SEEK_SET)
-            except Exception:
-                pass
-
-    # ---- precompute expected hash (optional) ----
-    expected_hex = None
-    raw_hash = (kwargs.get("raw_hash", "sha256") or "sha256").lower()
-    if raw_sha and total_len is not None:
-        try:
-            h = hashlib.sha256() if raw_hash != "md5" else hashlib.md5()
-            cur = fileobj.tell()
-            while True:
-                b = fileobj.read(65536)
-                if not b:
-                    break
-                h.update(_to_bytes(b))
-            expected_hex = h.hexdigest()
-            fileobj.seek(cur, os.SEEK_SET)
-        except Exception:
-            expected_hex = None
-            try:
-                if pos is not None:
-                    fileobj.seek(pos, os.SEEK_SET)
-            except Exception:
-                pass
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    try:
-        # ---- handshake / wait-for-receiver ----
-        tok = kwargs.get("token")
-        tok = _hs_token() if tok is None else _to_bytes(tok)
-
-        if wait:
-            start_t = time.time()
-            while True:
-                if wt is not None and wt >= 0 and (time.time() - start_t) >= wt:
-                    _log("UDP raw: wait_timeout reached; no receiver READY")
-                    try:
-                        sock.close()
-                    except Exception:
-                        pass
-                    return False
-
-                # announce
-                if handshake:
-                    try:
-                        sock.sendto(b"HELLO " + tok + b"\n", addr)
-                    except Exception:
-                        pass
-
-                if raw_meta and total_len is not None:
-                    try:
-                        sock.sendto(b"META " + str(total_len).encode("ascii") + b"\n", addr)
-                    except Exception:
-                        pass
-
-                if raw_sha and expected_hex:
-                    try:
-                        sock.sendto(b"HASH " + raw_hash.encode("ascii") + b" " + expected_hex.encode("ascii") + b"\n", addr)
-                    except Exception:
-                        pass
-
-                # wait briefly for READY
-                try:
-                    sock.settimeout(hello_iv)
-                except Exception:
-                    pass
-
-                try:
-                    pkt, _a = sock.recvfrom(1024)
-                    if pkt.startswith(b"READY"):
-                        # READY or READY <token>
-                        if b" " in pkt:
-                            rt = pkt.split(None, 1)[1].strip()
-                            if rt and rt != tok:
-                                continue
-                        _log("UDP raw: received READY from receiver")
-                        break
-                except socket.timeout:
-                    continue
-                except Exception:
-                    continue
-        else:
-            # if not waiting, still send META/HASH once up front
-            if handshake:
-                try:
-                    sock.sendto(b"HELLO " + tok + b"\n", addr)
-                except Exception:
-                    pass
-            if raw_meta and total_len is not None:
-                try:
-                    sock.sendto(b"META " + str(total_len).encode("ascii") + b"\n", addr)
-                except Exception:
-                    pass
-            if raw_sha and expected_hex:
-                try:
-                    sock.sendto(b"HASH " + raw_hash.encode("ascii") + b" " + expected_hex.encode("ascii") + b"\n", addr)
-                except Exception:
-                    pass
-
-        # ---- send data ----
-        if raw_ack:
-            # sliding window retransmit
-            try:
-                ack_to = float(kwargs.get("raw_ack_timeout", 0.5) or 0.5)
-            except Exception:
-                ack_to = 0.5
-            try:
-                retries_max = int(kwargs.get("raw_ack_retries", 40) or 40)
-            except Exception:
-                retries_max = 40
-            try:
-                win = int(kwargs.get("raw_ack_window", 1) or 1)
-            except Exception:
-                win = 1
-            if win < 1:
-                win = 1
-
-            try:
-                sock.settimeout(ack_to)
-            except Exception:
-                pass
-
-            def _make_pkt(seq, data):
-                return b"PKT " + str(seq).encode("ascii") + b" " + _to_bytes(data)
-
-            base_seq = 0
-            next_seq = 0
-            pkts = {}
-            eof = False
-            timeout_tries = 0
-
-            while True:
-                # fill window
-                while (not eof) and next_seq < base_seq + win:
-                    data = fileobj.read(chunk)
-                    if not data:
-                        eof = True
-                        break
-                    pkt = _make_pkt(next_seq, data)
-                    pkts[next_seq] = pkt
-                    try:
-                        sock.sendto(pkt, addr)
-                    except Exception:
-                        pass
-                    next_seq += 1
-
-                if eof and base_seq == next_seq:
-                    break
-
-                try:
-                    apkt, _a = sock.recvfrom(1024)
-                    if apkt.startswith(b"ACK "):
-                        try:
-                            aseq = int(apkt.split()[1])
-                        except Exception:
-                            aseq = -1
-                        new_base = aseq + 1
-                        if new_base > base_seq:
-                            for s in list(pkts.keys()):
-                                if s < new_base:
-                                    pkts.pop(s, None)
-                            base_seq = new_base
-                            timeout_tries = 0
-                except socket.timeout:
-                    timeout_tries += 1
-                    if retries_max >= 0 and timeout_tries >= retries_max:
-                        _log("UDP raw: too many ACK timeouts, giving up")
-                        return False
-                    # retransmit all in-flight
-                    for s in range(base_seq, next_seq):
-                        pkt = pkts.get(s)
-                        if pkt is None:
-                            continue
-                        try:
-                            sock.sendto(pkt, addr)
-                        except Exception:
-                            pass
-                except Exception:
-                    # treat as timeout-ish
-                    timeout_tries += 1
-
-        else:
-            # legacy raw: just send datagrams
-            while True:
-                data = fileobj.read(chunk)
-                if not data:
-                    break
-                try:
-                    sock.sendto(_to_bytes(data), addr)
-                except Exception:
-                    pass
-
-        # ---- finish ----
-        try:
-            sock.sendto(b"DONE", addr)
-        except Exception:
-            pass
-
-        return True
 
     finally:
         try:
@@ -16938,17 +17232,19 @@ def download_file_from_internet_file(url: str, **kwargs: Any):
     if p.scheme in ("file" or ""):
         return io.open(unquote(p.path), "rb")
 
-    if p.scheme in ("tcp", "udp") or p.scheme in _BT_SCHEMES:
+    if p.scheme in ("tcp", "udp") or p.scheme in _BT_SCHEMES or p.scheme in _UNIX_SCHEMES:
         parts, o = _parse_net_url(url)
         path_text = parts.path or "/"
-        if parts.scheme in _BT_SCHEMES and not o.get("framing"):
-            o["framing"] = "len"
-        if parts.scheme in _BT_SCHEMES and o.get("handshake") is None:
-            o["handshake"] = False
         if parts.scheme in _BT_SCHEMES:
             qs = parse_qs(parts.query or "")
             host, port = _bt_host_channel_from_url(parts, qs, o)
             proto = "bt"
+
+        elif parts.scheme in _UNIX_SCHEMES:
+            host = _unix_path_from_parts(parts, o, fallback_port=0)  # store path in host
+            port = 0
+            proto = parts.scheme
+
         else:
             host = o.get("bind") or parts.hostname or ""
             port = parts.port or 0
@@ -16984,7 +17280,11 @@ def download_file_from_internet_file(url: str, **kwargs: Any):
             outfile, host=host, port=port, proto=proto,
             mode=o.get("mode"), timeout=o.get("timeout"), total_timeout=o.get("total_timeout"),
             window=o.get("window"), retries=o.get("retries"), chunk=o.get("chunk"),
-            print_url=o.get("print_url"), resume_offset=resume_off, path_text=path_text, framing=o.get("framing"), handshake=o.get("handshake"), send_path=o.get("send_path"), logger=kwargs.get("logger")
+            print_url=o.get("print_url"), resume_offset=resume_off, path_text=path_text,
+            framing=o.get("framing"), handshake=o.get("handshake"), send_path=o.get("send_path"),
+            unix_path=o.get("unix_path"),
+            bind=o.get("bind"),
+            logger=kwargs.get("logger"),
         )
         if not ok:
             return False
@@ -17696,13 +17996,10 @@ def upload_file_to_internet_file(fileobj, url: str, **kwargs: Any):
             pass
         return fileobj
 
-    if p.scheme in ("tcp", "udp") or p.scheme in _BT_SCHEMES:
+    if p.scheme in ("tcp", "udp") or p.scheme in _BT_SCHEMES or p.scheme in _UNIX_SCHEMES:
         parts, o = _parse_net_url(url)
         path_text = parts.path or "/"
-        if parts.scheme in _BT_SCHEMES and not o.get("framing"):
-            o["framing"] = "len"
-        if parts.scheme in _BT_SCHEMES and o.get("handshake") is None:
-            o["handshake"] = False
+
         if parts.scheme in _BT_SCHEMES:
             qs = parse_qs(parts.query or "")
             o2 = dict(o)
@@ -17714,6 +18011,10 @@ def upload_file_to_internet_file(fileobj, url: str, **kwargs: Any):
             send_path = _qflag(qs, "send_path", False) or bool(o.get("send_path"))
             if not send_path:
                 path_text = None
+        elif parts.scheme in _UNIX_SCHEMES:
+            host = _unix_path_from_parts(parts, o, fallback_port=0)  # store path in host
+            port = 0
+            proto = parts.scheme
         else:
             host = parts.hostname
             port = parts.port or 0
@@ -17732,6 +18033,8 @@ def upload_file_to_internet_file(fileobj, url: str, **kwargs: Any):
             window=o.get("window"), retries=o.get("retries"), chunk=o.get("chunk"),
             resume=o.get("resume"), path_text=path_text,
             done=o.get("done"), done_token=o.get("done_token"), framing=o.get("framing"), sha256=o.get("sha256"),
+            unix_path=o.get("unix_path"),
+            bind=o.get("bind"),
             logger=kwargs.get("logger"),
         )
         return fileobj if ok else False
