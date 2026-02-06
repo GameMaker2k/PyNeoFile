@@ -21,7 +21,7 @@ $info['program_name'] = "PHPArchiveFile";
 $info['project'] = $info['program_name'];
 $info['project_url'] = "https://github.com/GameMaker2k/PyArchiveFile";
 $info['version_info'] = [0, 13, 14, "RC 1", 1];
-$info['version_id'] = "$Id: 3f9d06449f64c9028dcb048ddc001b70c7a1f374 $";
+$info['version_id'] = "$Id: 2c3b873073fd5f54699d9fa206329095cac3bffa $";
 $info['version_date_info'] = [2024, 7, 10, "RC 1", 1];
 $info['version_date'] = $info['version_date_info'][0].".".str_pad($info['version_date_info'][1], 2, "-=", STR_PAD_LEFT).".".str_pad($info['version_date_info'][2], 2, "-=", STR_PAD_LEFT);
 if ($info['version_info'][4] !== null) {
