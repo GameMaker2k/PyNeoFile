@@ -4640,7 +4640,7 @@ def ReadFileHeaderDataWoSize(fp, delimiter=_default_delim(None)):
     return first_two + headerdata
 
 
-def ReadFileHeaderDataWithContent(fp, listonly=False, uncompress=True, skipchecksum=False, formatspecs=__file_format_dict__, saltkey=None):
+def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncompress=True, skipchecksum=False, formatspecs=__file_format_dict__, saltkey=None):
     if(not hasattr(fp, "read")):
         return False
     delimiter = formatspecs['format_delimiter']
@@ -4657,15 +4657,41 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, uncompress=True, skipcheck
     fcs = HeaderOut[-2].lower()
     fccs = HeaderOut[-1].lower()
     fsize = int(HeaderOut[7], 16)
-    fcompression = HeaderOut[14]
-    fcsize = int(HeaderOut[15], 16)
-    fseeknextfile = HeaderOut[26]
-    fjsontype = HeaderOut[27]
-    fjsonlen = int(HeaderOut[28], 16)
-    fjsonsize = int(HeaderOut[29], 16)
-    fjsonchecksumtype = HeaderOut[30]
-    fjsonchecksum = HeaderOut[31]
-    fjsoncontent = {}
+    fcompression = HeaderOut[17]
+    fcsize = int(HeaderOut[18], 16)
+    fseeknextfile = HeaderOut[28]
+    fjsontype = HeaderOut[29]
+    fjsonlen = int(HeaderOut[30], 16)
+    fjsonsize = int(HeaderOut[31], 16)
+    fjsonchecksumtype = HeaderOut[32]
+    fjsonchecksum = HeaderOut[33]
+    fextrasize = int(HeaderOut[34], 16)
+    fextrafields = int(HeaderOut[35], 16)
+    fextrafieldslist = []
+    extrastart = 36
+    extraend = extrastart + fextrafields
+    while(extrastart < extraend):
+        fextrafieldslist.append(HeaderOut[extrastart])
+        extrastart = extrastart + 1
+    fvendorfieldslist = []
+    fvendorfields = 0;
+    if((len(HeaderOut) - 4)>extraend):
+        extrastart = extraend
+        extraend = len(HeaderOut) - 4
+        while(extrastart < extraend):
+            fvendorfieldslist.append(HeaderOut[extrastart])
+            extrastart = extrastart + 1
+            fvendorfields = fvendorfields + 1
+    if(fextrafields==1):
+        try:
+            fextrafieldslist = json.loads(base64.b64decode(fextrafieldslist[0]).decode("UTF-8"))
+            fextrafields = len(fextrafieldslist)
+        except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
+            try:
+                fextrafieldslist = json.loads(fextrafieldslist[0])
+            except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
+                pass
+    fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
         fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
@@ -4732,31 +4758,37 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, uncompress=True, skipcheck
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
     fp.seek(len(delimiter), 1)
+    fjend = fp.tell() - 1
     jsonfcs = GetFileChecksum(fprejsoncontent, fjsonchecksumtype, True, formatspecs, saltkey)
     if(not CheckChecksums(fjsonchecksum, jsonfcs) and not skipchecksum):
         VerbosePrintOut("File JSON Data Checksum Error with file " +
                         fname + " at offset " + str(fheaderstart))
         VerbosePrintOut("'" + fjsonchecksum + "' != " + "'" + jsonfcs + "'")
         return False
-    fp.seek(len(delimiter), 1)
+    fcs = HeaderOut[-2].lower()
+    fccs = HeaderOut[-1].lower()
     newfcs = GetHeaderChecksum(HeaderOut[:-2], HeaderOut[-4].lower(), True, formatspecs, saltkey)
-    HeaderOut.append(fjsoncontent)
     if(fcs != newfcs and not skipchecksum):
         VerbosePrintOut("File Header Checksum Error with file " +
                         fname + " at offset " + str(fheaderstart))
         VerbosePrintOut("'" + fcs + "' != " + "'" + newfcs + "'")
         return False
+    fhend = fp.tell() - 1
+    fcontentstart = fp.tell()
     fcontents = MkTempFile()
+    pyhascontents = False
     if(fsize > 0 and not listonly):
         if(fcompression == "none" or fcompression == "" or fcompression == "auto"):
             fcontents.write(fp.read(fsize))
         else:
             fcontents.write(fp.read(fcsize))
+        pyhascontents = True
     elif(fsize > 0 and listonly):
         if(fcompression == "none" or fcompression == "" or fcompression == "auto"):
             fp.seek(fsize, 1)
         else:
             fp.seek(fcsize, 1)
+        pyhascontents = False
     fcontents.seek(0, 0)
     newfccs = GetFileChecksum(fcontents, HeaderOut[-3].lower(), False, formatspecs, saltkey)
     fcontents.seek(0, 0)
@@ -4770,12 +4802,15 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, uncompress=True, skipcheck
     else:
         fcontents.seek(0, 0)
         if(uncompress):
-            cfcontents = UncompressFileAlt(fcontents, formatspecs)
+            cfcontents = UncompressFileAlt(
+                fcontents, formatspecs)
             cfcontents.seek(0, 0)
             fcontents = MkTempFile()
             shutil.copyfileobj(cfcontents, fcontents, length=__filebuff_size__)
             cfcontents.close()
             fcontents.seek(0, 0)
+            fccs = GetFileChecksum(fcontents, HeaderOut[-3].lower(), False, formatspecs, saltkey)
+    fcontentend = fp.tell()
     if(re.findall("^\\+([0-9]+)", fseeknextfile)):
         fseeknextasnum = int(fseeknextfile.replace("+", ""))
         if(abs(fseeknextasnum) == 0):
@@ -4793,6 +4828,9 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, uncompress=True, skipcheck
         fp.seek(fseeknextasnum, 0)
     else:
         return False
+    fcontents.seek(0, 0)
+    if(not contentasfile):
+        fcontents = fcontents.read()
     HeaderOut.append(fcontents)
     return HeaderOut
 
@@ -5241,7 +5279,7 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
     return outlist
 
 
-def ReadFileDataWithContent(fp, filestart=0, listonly=False, uncompress=True, skipchecksum=False, formatspecs=__file_format_dict__, saltkey=None):
+def ReadFileDataWithContent(fp, filestart=0, listonly=False, contentasfile=False, uncompress=True, skipchecksum=False, formatspecs=__file_format_dict__, saltkey=None):
     if(not hasattr(fp, "read")):
         return False
     delimiter = formatspecs['format_delimiter']
@@ -5279,8 +5317,8 @@ def ReadFileDataWithContent(fp, filestart=0, listonly=False, uncompress=True, sk
                         "'" + newfcs + "'")
         return False
     fnumfiles = int(inheader[8], 16)
-    outfseeknextfile = inheaderdata[9]
-    fjsonsize = int(inheaderdata[12], 16)
+    outfseeknextfile = inheader[9]
+    fjsonsize = int(inheader[12], 16)
     fjsonchecksumtype = inheader[13]
     fjsonchecksum = inheader[14]
     fp.read(fjsonsize)
@@ -5305,7 +5343,7 @@ def ReadFileDataWithContent(fp, filestart=0, listonly=False, uncompress=True, sk
     countnum = 0
     flist = []
     while(countnum < fnumfiles):
-        HeaderOut = ReadFileHeaderDataWithContent(fp, listonly, uncompress, skipchecksum, formatspecs, saltkey)
+        HeaderOut = ReadFileHeaderDataWithContent(fp, listonly, contentasfile, uncompress, skipchecksum, formatspecs, saltkey)
         if(len(HeaderOut) == 0):
             break
         flist.append(HeaderOut)
