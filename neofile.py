@@ -203,7 +203,7 @@ if active_action:
                 sys.exit(1)
             input_file = tempout
         pyneofile.UnPackNeoFile(input_file, getargs.output, False, getargs.filestart, 0, 0, getargs.skipchecksum,
-                                    fnamedict, getargs.verbose, getargs.preserve, getargs.preserve, False, False)
+                                    fnamedict, getargs.insecretkey, getargs.preserve, getargs.preserve, False, getargs.verbose, False)
     elif active_action == 'list':
         if getargs.convert:
             checkcompressfile = pyneofile.CheckCompressionSubType(
