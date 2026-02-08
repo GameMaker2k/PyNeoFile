@@ -698,7 +698,7 @@ __version_date_info__ = (2026, 2, 6, "RC 1", 1)
 __version_date__ = str(__version_date_info__[0]) + "." + str(
     __version_date_info__[1]).zfill(2) + "." + str(__version_date_info__[2]).zfill(2)
 __revision__ = __version_info__[3]
-__revision_id__ = "$Id: 500e3d68b04675a4d0136318985ce15833a4f57e $"
+__revision_id__ = "$Id$"
 if(__version_info__[4] is not None):
     __version_date_plusrc__ = __version_date__ + \
         "-" + str(__version_date_info__[4])
@@ -4805,8 +4805,12 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
         il = 0
         while(il < seekstart):
             prefhstart = fp.tell()
-            preheaderdata = ReadFileHeaderDataBySize(
-                fp, formatspecs['format_delimiter'])
+            if(__use_new_style__):
+                preheaderdata = ReadFileHeaderDataBySize(
+                    fp, formatspecs['format_delimiter'])
+            else:
+                preheaderdata = ReadFileHeaderDataWoSize(
+                    fp, formatspecs['format_delimiter'])
             if(len(preheaderdata) == 0):
                 break
             prefsize = int(preheaderdata[5], 16)
