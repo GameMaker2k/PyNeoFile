@@ -16,7 +16,12 @@ import binascii
 import hashlib
 import inspect
 import tempfile
-from .pywwwget import upload_file_to_internet_file, download_file_from_internet_file
+pywwwget = False
+try:
+    from .pywwwget import upload_file_to_internet_file, download_file_from_internet_file
+    pywwwget = True
+except ImportError:
+    pywwwget = False
 from io import open
 
 # RAR file support
@@ -4393,7 +4398,7 @@ def ReadInFileWithContentToArray(infile, fmttype="auto", filestart=0, seekstart=
         outfsize = fp.tell()
         fp.seek(filestart, 0)
         currentfilepos = fp.tell()
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         fp = download_file_from_internet_file(infile)
         try:
             fp.seek(0, 2)
@@ -4510,7 +4515,7 @@ def ReadInFileWithContentToList(infile, fmttype="auto", filestart=0, seekstart=0
         outfsize = fp.tell()
         fp.seek(filestart, 0)
         currentfilepos = fp.tell()
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         fp = download_file_from_internet_file(infile)
         try:
             fp.seek(0, 2)
@@ -4775,7 +4780,7 @@ def MakeEmptyFile(outfile, fmttype="auto", compression="auto", compresswholefile
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
         return MakeEmptyFilePointer(fp, fmttype, checksumtype, formatspecs, saltkey)
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -4804,7 +4809,7 @@ def MakeEmptyFile(outfile, fmttype="auto", compression="auto", compresswholefile
         outvar = fp.read()
         fp.close()
         return outvar
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -5271,7 +5276,7 @@ def AppendFilesWithContentFromTarFileToList(infile, extradata=[], jsondata={}, c
         if(not infile):
             return False
         infile.seek(0, 0)
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         infile = download_file_from_internet_file(infile)
         infile.seek(0, 0)
         if(not infile):
@@ -5499,7 +5504,7 @@ def AppendFilesWithContentFromZipFileToList(infile, extradata=[], jsondata={}, c
         if(not infile):
             return False
         infile.seek(0, 0)
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         infile = download_file_from_internet_file(infile)
         infile.seek(0, 0)
         if(not infile):
@@ -6308,7 +6313,7 @@ def AppendFilesWithContentToOutFile(infiles, outfile, dirlistfromtxt=False, fmtt
         fp = MkTempFile()
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -6337,7 +6342,7 @@ def AppendFilesWithContentToOutFile(infiles, outfile, dirlistfromtxt=False, fmtt
         outvar = fp.read()
         fp.close()
         return outvar
-    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -6393,7 +6398,7 @@ def AppendListsWithContentToOutFile(inlist, outfile, dirlistfromtxt=False, fmtty
         fp = MkTempFile()
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -6422,7 +6427,7 @@ def AppendListsWithContentToOutFile(inlist, outfile, dirlistfromtxt=False, fmtty
         outvar = fp.read()
         fp.close()
         return outvar
-    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -6498,7 +6503,7 @@ def AppendReadInFileWithContentToOutFile(infiles, outfile, fmttype="auto", compr
         fp = MkTempFile()
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -6527,7 +6532,7 @@ def AppendReadInFileWithContentToOutFile(infiles, outfile, fmttype="auto", compr
         outvar = fp.read()
         fp.close()
         return outvar
-    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -6585,7 +6590,7 @@ def AppendFilesWithContentFromTarFileToOutFile(infiles, outfile, fmttype="auto",
         fp = MkTempFile()
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -6614,7 +6619,7 @@ def AppendFilesWithContentFromTarFileToOutFile(infiles, outfile, fmttype="auto",
         outvar = fp.read()
         fp.close()
         return outvar
-    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -6672,7 +6677,7 @@ def AppendFilesWithContentFromZipFileToOutFile(infiles, outfile, fmttype="auto",
         fp = MkTempFile()
     elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
         fp = outfile
-    elif(re.findall(__upload_proto_support__, outfile)):
+    elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = MkTempFile()
     else:
         fbasename = os.path.splitext(outfile)[0]
@@ -6701,7 +6706,7 @@ def AppendFilesWithContentFromZipFileToOutFile(infiles, outfile, fmttype="auto",
         outvar = fp.read()
         fp.close()
         return outvar
-    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+    elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(
             fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
@@ -6763,7 +6768,7 @@ else:
             fp = MkTempFile()
         elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
             fp = outfile
-        elif(re.findall(__upload_proto_support__, outfile)):
+        elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
             fp = MkTempFile()
         else:
             fbasename = os.path.splitext(outfile)[0]
@@ -6792,7 +6797,7 @@ else:
             outvar = fp.read()
             fp.close()
             return outvar
-        elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+        elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
             fp = CompressOpenFileAlt(
                 fp, compression, compressionlevel, compressionuselist, formatspecs)
             fp.seek(0, 0)
@@ -6854,7 +6859,7 @@ else:
             fp = MkTempFile()
         elif(hasattr(outfile, "read") or hasattr(outfile, "write")):
             fp = outfile
-        elif(re.findall(__upload_proto_support__, outfile)):
+        elif(re.findall(__upload_proto_support__, outfile) and pywwwget):
             fp = MkTempFile()
         else:
             fbasename = os.path.splitext(outfile)[0]
@@ -6883,7 +6888,7 @@ else:
             outvar = fp.read()
             fp.close()
             return outvar
-        elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile)):
+        elif((not hasattr(outfile, "read") and not hasattr(outfile, "write")) and re.findall(__upload_proto_support__, outfile) and pywwwget):
             fp = CompressOpenFileAlt(
                 fp, compression, compressionlevel, compressionuselist, formatspecs)
             fp.seek(0, 0)
@@ -7128,7 +7133,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
         if(not fp):
             return False
         fp.seek(filestart, 0)
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         fp = download_file_from_internet_file(infile)
         fp = UncompressFileAlt(fp, formatspecs, filestart)
         compresscheck = CheckCompressionType(fp, formatspecs, 0, False)
@@ -8065,7 +8070,7 @@ def RePackNeoFile(infile, outfile, fmttype="auto", compression="auto", compressw
             pass
         return outvar
     elif ((not hasattr(outfile, "read") and not hasattr(outfile, "write"))
-          and re.findall(__upload_proto_support__, outfile)):
+          and re.findall(__upload_proto_support__, outfile) and pywwwget):
         fp = CompressOpenFileAlt(fp, compression, compressionlevel, compressionuselist, formatspecs)
         fp.seek(0, 0)
         upload_file_to_internet_file(fp, outfile)
@@ -8508,7 +8513,7 @@ def TarFileListFiles(infile, formatspecs=__file_format_multi_dict__, verbose=Fal
         if(not infile):
             return False
         infile.seek(0, 0)
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         infile = download_file_from_internet_file(infile)
         infile.seek(0, 0)
         if(not infile):
@@ -8630,7 +8635,7 @@ def ZipFileListFiles(infile, verbose=False, returnfp=False):
         if(not infile):
             return False
         infile.seek(0, 0)
-    elif(re.findall(__download_proto_support__, infile)):
+    elif(re.findall(__download_proto_support__, infile) and pywwwget):
         infile = download_file_from_internet_file(infile)
         infile.seek(0, 0)
         if(not infile):
