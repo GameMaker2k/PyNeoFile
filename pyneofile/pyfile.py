@@ -4086,30 +4086,30 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncom
     fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if(fjsonsize > 0):
             try:
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
-                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8"))
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
+                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent).decode("UTF-8"))
             except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                 try:
                     fjsonrawcontent = fprejsoncontent
-                    fjsoncontent = json.loads(fprejsoncontent)
+                    fjsoncontent = json.loads(fprejsoncontent.decode("UTF-8"))
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent 
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent 
             fjsoncontent = {}
     elif(testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if (fjsonsize > 0):
             try:
                 # try base64 → utf-8 → YAML
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
                 fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
             except (binascii.Error, UnicodeDecodeError, yaml.YAMLError):
                 try:
@@ -4118,20 +4118,20 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncom
                     fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
                 except (UnicodeDecodeError, yaml.YAMLError):
                     # final fallback: empty
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent
             fjsoncontent = {}
     elif(not testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
-        fprejsoncontent = ""
+        fprejsoncontent = fp.read(fjsonsize)
+        fprejsoncontent = "".encode("UTF-8")
         fjsonrawcontent = fprejsoncontent
     elif(fjsontype=="list"):
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         flisttmp = MkTempFile()
         flisttmp.write(fprejsoncontent.encode())
         flisttmp.seek(0)
@@ -4304,30 +4304,30 @@ def ReadFileHeaderDataWithContentToArray(fp, listonly=False, contentasfile=True,
     fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if(fjsonsize > 0):
             try:
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
-                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8"))
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
+                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent).decode("UTF-8"))
             except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                 try:
                     fjsonrawcontent = fprejsoncontent
-                    fjsoncontent = json.loads(fprejsoncontent)
+                    fjsoncontent = json.loads(fprejsoncontent.decode("UTF-8"))
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent 
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent 
             fjsoncontent = {}
     elif(testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if (fjsonsize > 0):
             try:
                 # try base64 → utf-8 → YAML
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
                 fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
             except (binascii.Error, UnicodeDecodeError, yaml.YAMLError):
                 try:
@@ -4336,20 +4336,20 @@ def ReadFileHeaderDataWithContentToArray(fp, listonly=False, contentasfile=True,
                     fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
                 except (UnicodeDecodeError, yaml.YAMLError):
                     # final fallback: empty
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent
             fjsoncontent = {}
     elif(not testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
-        fprejsoncontent = ""
+        fprejsoncontent = fp.read(fjsonsize)
+        fprejsoncontent = "".encode("UTF-8")
         fjsonrawcontent = fprejsoncontent
     elif(fjsontype=="list"):
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         flisttmp = MkTempFile()
         flisttmp.write(fprejsoncontent.encode())
         flisttmp.seek(0)
@@ -4523,30 +4523,30 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
     fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if(fjsonsize > 0):
             try:
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
-                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8"))
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
+                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent).decode("UTF-8"))
             except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                 try:
                     fjsonrawcontent = fprejsoncontent
-                    fjsoncontent = json.loads(fprejsoncontent)
+                    fjsoncontent = json.loads(fprejsoncontent.decode("UTF-8"))
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent 
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent 
             fjsoncontent = {}
     elif(testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if (fjsonsize > 0):
             try:
                 # try base64 → utf-8 → YAML
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
                 fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
             except (binascii.Error, UnicodeDecodeError, yaml.YAMLError):
                 try:
@@ -4555,20 +4555,20 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
                     fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
                 except (UnicodeDecodeError, yaml.YAMLError):
                     # final fallback: empty
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent
             fjsoncontent = {}
     elif(not testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
-        fprejsoncontent = ""
+        fprejsoncontent = fp.read(fjsonsize)
+        fprejsoncontent = "".encode("UTF-8")
         fjsonrawcontent = fprejsoncontent
     elif(fjsontype=="list"):
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         flisttmp = MkTempFile()
         flisttmp.write(fprejsoncontent.encode())
         flisttmp.seek(0)
@@ -4800,30 +4800,30 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
     fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if(fjsonsize > 0):
             try:
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
-                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8"))
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
+                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent).decode("UTF-8"))
             except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                 try:
                     fjsonrawcontent = fprejsoncontent
-                    fjsoncontent = json.loads(fprejsoncontent)
+                    fjsoncontent = json.loads(fprejsoncontent.decode("UTF-8"))
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent 
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent 
             fjsoncontent = {}
     elif(testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if (fjsonsize > 0):
             try:
                 # try base64 → utf-8 → YAML
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
                 fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
             except (binascii.Error, UnicodeDecodeError, yaml.YAMLError):
                 try:
@@ -4832,20 +4832,20 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
                     fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
                 except (UnicodeDecodeError, yaml.YAMLError):
                     # final fallback: empty
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent
             fjsoncontent = {}
     elif(not testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
-        fprejsoncontent = ""
+        fprejsoncontent = fp.read(fjsonsize)
+        fprejsoncontent = "".encode("UTF-8")
         fjsonrawcontent = fprejsoncontent
     elif(fjsontype=="list"):
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         flisttmp = MkTempFile()
         flisttmp.write(fprejsoncontent.encode())
         flisttmp.seek(0)
@@ -5063,30 +5063,30 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
     fjstart = fp.tell()
     if(fjsontype=="json"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if(fjsonsize > 0):
             try:
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
-                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8"))
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
+                fjsoncontent = json.loads(base64.b64decode(fprejsoncontent).decode("UTF-8"))
             except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                 try:
                     fjsonrawcontent = fprejsoncontent
-                    fjsoncontent = json.loads(fprejsoncontent)
+                    fjsoncontent = json.loads(fprejsoncontent.decode("UTF-8"))
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent 
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent 
             fjsoncontent = {}
     elif(testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         if (fjsonsize > 0):
             try:
                 # try base64 → utf-8 → YAML
-                fjsonrawcontent = base64.b64decode(fprejsoncontent.encode("UTF-8")).decode("UTF-8")
+                fjsonrawcontent = base64.b64decode(fprejsoncontent)
                 fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
             except (binascii.Error, UnicodeDecodeError, yaml.YAMLError):
                 try:
@@ -5095,20 +5095,20 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
                     fjsoncontent = yaml.safe_load(fjsonrawcontent) or {}
                 except (UnicodeDecodeError, yaml.YAMLError):
                     # final fallback: empty
-                    fprejsoncontent = ""
+                    fprejsoncontent = "".encode("UTF-8")
                     fjsonrawcontent = fprejsoncontent
                     fjsoncontent = {}
         else:
-            fprejsoncontent = ""
+            fprejsoncontent = "".encode("UTF-8")
             fjsonrawcontent = fprejsoncontent
             fjsoncontent = {}
     elif(not testyaml and fjsontype == "yaml"):
         fjsoncontent = {}
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
-        fprejsoncontent = ""
+        fprejsoncontent = fp.read(fjsonsize)
+        fprejsoncontent = "".encode("UTF-8")
         fjsonrawcontent = fprejsoncontent
     elif(fjsontype=="list"):
-        fprejsoncontent = fp.read(fjsonsize).decode("UTF-8")
+        fprejsoncontent = fp.read(fjsonsize)
         flisttmp = MkTempFile()
         flisttmp.write(fprejsoncontent.encode())
         flisttmp.seek(0)
@@ -7916,7 +7916,6 @@ def PackNeoFileFromInFile(infile, outfile, fmttype="auto", compression="auto", c
 
 # --- Add this helper (Py2/3 compatible) ---
 def NeoFileArrayValidate(listarrayfiles, verbose=False):
-    import logging
     # Top-level checks
     if not isinstance(listarrayfiles, dict):
         if verbose: logging.warning("listarrayfiles must be a dict, got %r", type(listarrayfiles))
@@ -7998,7 +7997,6 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             return False
         if(not fp):
             return False
-        fp.seek(filestart, 0)
     elif(infile == "-"):
         fp = MkTempFile()
         shutil.copyfileobj(PY_STDIN_BUF, fp, length=__filebuff_size__)
@@ -8009,7 +8007,6 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             formatspecs = formatspecs[checkcompressfile]
         if(not fp):
             return False
-        fp.seek(filestart, 0)
     elif(isinstance(infile, bytes)):
         fp = MkTempFile()
         fp.write(infile)
@@ -8020,17 +8017,14 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             formatspecs = formatspecs[compresscheck]
         if(not fp):
             return False
-        fp.seek(filestart, 0)
     elif(re.findall(__download_proto_support__, infile) and pywwwget):
         fp = download_file_from_internet_file(infile)
         fp = UncompressFileAlt(fp, formatspecs, filestart)
         compresscheck = CheckCompressionType(fp, formatspecs, 0, False)
         if(IsNestedDict(formatspecs) and compresscheck in formatspecs):
             formatspecs = formatspecs[compresscheck]
-        fp.seek(filestart, 0)
         if(not fp):
             return False
-        fp.seek(filestart, 0)
     else:
         infile = RemoveWindowsPath(infile)
         checkcompressfile = CheckCompressionSubType(infile, formatspecs, filestart, True)
@@ -8077,7 +8071,6 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             return False
         else:
             formatspecs = formatspecs[compresschecking]
-            fp.seek(filestart, 0)
     inheaderver = str(int(formatspecs['format_ver'].replace(".", "")))
     headeroffset = fp.tell()
     formstring = fp.read(formatspecs['format_len'] + len(inheaderver)).decode("UTF-8")
