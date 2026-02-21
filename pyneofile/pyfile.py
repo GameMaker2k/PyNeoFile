@@ -7914,7 +7914,7 @@ def PackNeoFileFromInFile(infile, outfile, fmttype="auto", compression="auto", c
         return False
     return False
 
-def NeoFileArrayValidate(infile, verbose=False):
+def NeoFileArrayValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, verbose=False, returnfp=False):
     # ---------- Input handling ----------
     if isinstance(infile, dict):
         listarrayfileslist = [infile]
