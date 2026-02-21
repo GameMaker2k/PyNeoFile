@@ -7989,7 +7989,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             infile = RemoveWindowsPath(infile)
         listarrayfileslist = ArchiveFileToArray(
             infile, fmttype, filestart, 0, 0,
-            False, False, True, True, formatspecs, saltkey, seektoend, returnfp
+            False, True, False, True, formatspecs, saltkey, seektoend, returnfp
         )
     for listarrayfiles in listarrayfileslist:
         fp = listarrayfiles['fp']
