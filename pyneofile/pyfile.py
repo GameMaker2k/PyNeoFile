@@ -563,8 +563,8 @@ __use_json_file__ = False
 __use_json_name__ = os.path.join(filecfgpath, "neofile.json")
 if(__use_ini_file__ and __use_json_file__):
     __use_json_file__ = False
-if('PYARCHIVEFILE_CONFIG_FILE' in os.environ and os.path.exists(os.environ['PYARCHIVEFILE_CONFIG_FILE']) and __use_env_file__):
-    scriptconf = os.environ['PYARCHIVEFILE_CONFIG_FILE']
+if('PYNEOFILE_CONFIG_FILE' in os.environ and os.path.exists(os.environ['PYNEOFILE_CONFIG_FILE']) and __use_env_file__):
+    scriptconf = os.environ['PYNEOFILE_CONFIG_FILE']
 else:
     prescriptpath = get_importing_script_path()
     if(prescriptpath is not None):
@@ -751,7 +751,7 @@ if not __use_ini_file__ and not __include_defaults__:
 if __include_defaults__:
     # Neo / Arc
     add_format(__file_format_multi_dict__, "NeoFile", "NeoFile", ".neo", "NeoFile")
-    add_format(__file_format_multi_dict__, "ArchiveFile", "ArchiveFile", ".arc", "ArchiveFile")
+    add_format(__file_format_multi_dict__, "NeoFile", "NeoFile", ".arc", "NeoFile")
 
 # Pick a default if current default key is not present
 if __file_format_default__ not in __file_format_multi_dict__:
@@ -1448,14 +1448,7 @@ def NormalizeRelativePath(inpath):
             inpath = "file:///" + inpath[7:]
         dparsed = urlparse(inpath)
         inpath = url2pathname(dparsed.path)
-    inpath = RemoveWindowsPath(inpath)
-    if os.path.isabs(inpath):
-        outpath = inpath
-    else:
-        if inpath.startswith("./") or inpath.startswith("../"):
-            outpath = inpath
-        else:
-            outpath = "./" + inpath
+    outpath = RemoveWindowsPath(inpath)
     return outpath
 
 def PrependPath(base_dir, child_path):
@@ -4042,10 +4035,7 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncom
     HeaderOut = ReadFileHeaderDataBySize(fp, delimiter)
     if(len(HeaderOut) == 0):
         return False
-    if(re.findall("^[.|/]", HeaderOut[5])):
-        fname = HeaderOut[5]
-    else:
-        fname = "./"+HeaderOut[5]
+    fname = HeaderOut[5]
     fcs = HeaderOut[-2].lower()
     fccs = HeaderOut[-1].lower()
     fsize = int(HeaderOut[7], 16)
@@ -4240,10 +4230,7 @@ def ReadFileHeaderDataWithContentToArray(fp, listonly=False, contentasfile=True,
     ftype = int(HeaderOut[2], 16)
     fencoding = HeaderOut[3]
     fcencoding = HeaderOut[4]
-    if(re.findall("^[.|/]", HeaderOut[5])):
-        fname = HeaderOut[5]
-    else:
-        fname = "./"+HeaderOut[5]
+    fname = HeaderOut[5]
     fbasedir = os.path.dirname(fname)
     flinkname = HeaderOut[6]
     fsize = int(HeaderOut[7], 16)
@@ -4459,10 +4446,7 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
     ftype = int(HeaderOut[2], 16)
     fencoding = HeaderOut[3]
     fcencoding = HeaderOut[4]
-    if(re.findall("^[.|/]", HeaderOut[5])):
-        fname = HeaderOut[5]
-    else:
-        fname = "./"+HeaderOut[5]
+    fname = HeaderOut[5]
     fbasedir = os.path.dirname(fname)
     flinkname = HeaderOut[6]
     fsize = int(HeaderOut[7], 16)
@@ -4919,10 +4903,7 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
             if(len(preheaderdata) == 0):
                 break
             prefsize = int(preheaderdata[5], 16)
-            if(re.findall("^[.|/]", preheaderdata[5])):
-                prefname = preheaderdata[5]
-            else:
-                prefname = "./"+preheaderdata[5]
+            prefname = preheaderdata[5]
             prefseeknextfile = preheaderdata[26]
             prefjsonlen = int(preheaderdata[28], 16)
             prefjsonsize = int(preheaderdata[29], 16)
@@ -5181,10 +5162,7 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
             if(len(preheaderdata) == 0):
                 break
             prefsize = int(preheaderdata[5], 16)
-            if(re.findall("^[.|/]", preheaderdata[5])):
-                prefname = preheaderdata[5]
-            else:
-                prefname = "./"+preheaderdata[5]
+            prefname = preheaderdata[5]
             prefcompression = preheaderdata[14]
             prefcsize = int(preheaderdata[15], 16)
             prefseeknextfile = preheaderdata[26]
@@ -5843,10 +5821,7 @@ def AppendFilesWithContentToList(infiles, dirlistfromtxt=False, extradata=[], js
     tmpoutlist = []
     for curfname in GetDirList:
         fencoding = "UTF-8"
-        if(re.findall("^[.|/]", curfname)):
-            fname = curfname
-        else:
-            fname = "./"+curfname
+        fname = curfname
         if(not os.path.exists(fname)):
             return False
         if(verbose):
@@ -6203,10 +6178,7 @@ def AppendFilesWithContentFromTarFileToList(infile, extradata=[], jsondata={}, c
     tmpoutlist = []
     for member in sorted(tarfp.getmembers(), key=lambda x: x.name):
         fencoding = "UTF-8"
-        if(re.findall("^[.|/]", member.name)):
-            fname = member.name
-        else:
-            fname = "./"+member.name
+        fname = member.name
         if(verbose):
             VerbosePrintOut(fname)
         fpremode = member.mode
@@ -6410,10 +6382,7 @@ def AppendFilesWithContentFromZipFileToList(infile, extradata=[], jsondata={}, c
     tmpoutlist = []
     for member in sorted(zipfp.infolist(), key=lambda x: x.filename):
         fencoding = "UTF-8"
-        if(re.findall("^[.|/]", member.filename)):
-            fname = member.filename
-        else:
-            fname = "./"+member.filename
+        fname = member.filename
         zipinfo = zipfp.getinfo(member.filename)
         if(verbose):
             VerbosePrintOut(fname)
@@ -6664,10 +6633,7 @@ else:
                 is_unix = False
                 is_windows = False
             fencoding = "UTF-8"
-            if(re.findall("^[.|/]", member.filename)):
-                fname = member.filename
-            else:
-                fname = "./"+member.filename
+            fname = member.filename
             rarinfo = rarfp.getinfo(member.filename)
             if(verbose):
                 VerbosePrintOut(fname)
@@ -6932,10 +6898,7 @@ else:
         tmpoutlist = []
         for member in sorted(szpfp.list(), key=lambda x: x.filename):
             fencoding = "UTF-8"
-            if(re.findall("^[.|/]", member.filename)):
-                fname = member.filename
-            else:
-                fname = "./"+member.filename
+            fname = member.filename
             if(verbose):
                 VerbosePrintOut(fname)
             if(not member.is_directory):
@@ -7123,10 +7086,7 @@ def AppendListsWithContent(inlist, fp, dirlistfromtxt=False, extradata=[], jsond
         ftype = format(curfname[0], 'x').lower()
         fencoding = curfname[1]
         fcencoding = curfname[2]
-        if(re.findall("^[.|/]", curfname[3])):
-            fname = curfname[3]
-        else:
-            fname = "./"+curfname[3]
+        fname = curfname[3]
         if(not os.path.exists(fname)):
             return False
         fbasedir = os.path.dirname(fname)
@@ -7924,7 +7884,7 @@ def NeoFileArrayValidate(infile, fmttype="auto", filestart=0, formatspecs=__file
         if (infile != "-" and not isinstance(infile, (bytes, bytearray, memoryview))  # bytes is str on Py2
             and not hasattr(infile, "read") and not hasattr(infile, "write")):
             infile = RemoveWindowsPath(infile)
-        listarrayfileslist = ArchiveFileToArray(
+        listarrayfileslist = NeoFileToArray(
             infile, fmttype, filestart, 0, 0,
             False, True, False, True, formatspecs, saltkey, seektoend, returnfp
         )
@@ -7998,7 +7958,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
         if (infile != "-" and not isinstance(infile, (bytes, bytearray, memoryview))  # bytes is str on Py2
             and not hasattr(infile, "read") and not hasattr(infile, "write")):
             infile = RemoveWindowsPath(infile)
-        listarrayfileslist = ArchiveFileToArray(
+        listarrayfileslist = NeoFileToArray(
             infile, fmttype, filestart, 0, 0,
             False, True, False, True, formatspecs, saltkey, seektoend, returnfp
         )
@@ -8061,10 +8021,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             inheaderdata = cur_entry['frawheader']
             if(len(inheaderdata) == 0):
                 break
-            if(re.findall("^[.|/]", inheaderdata[5])):
-                outfname = inheaderdata[5]
-            else:
-                outfname = "./" + inheaderdata[5]
+            outfname = inheaderdata[5]
             outfbasedir = os.path.dirname(outfname)
             outfsize = int(inheaderdata[7], 16)
             outfcompression = inheaderdata[17]
@@ -8123,6 +8080,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
             pyhascontents = False
             if(outfsize > 0):
                 outfcontents = cur_entry['fcontents']
+                outfcontents.seek(0, 0)
                 infccs = GetFileChecksum(outfcontents, inheaderdata[-3].lower(), False, formatspecs, saltkey)
                 pyhascontents = True
                 if(CheckChecksums(outfccs, infccs)):
@@ -8147,6 +8105,7 @@ def NeoFileValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_form
     else:
         fp.close()
         return False
+
 
 def NeoFileValidateFile(infile, fmttype="auto", filestart=0, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, verbose=False, returnfp=False):
     return NeoFileValidate(infile, fmttype, filestart, formatspecs, saltkey, seektoend, verbose, returnfp)
@@ -8571,10 +8530,7 @@ def RePackNeoFile(infile, outfile, fmttype="auto", compression="auto", compressw
 
             # path
             fname_field = cur_entry['fname']
-            if re.findall(r"^[.|/]", fname_field):
-                fname = fname_field
-            else:
-                fname = "./" + fname_field
+            fname = fname_field
 
             if verbose:
                 VerbosePrintOut(fname)
@@ -9675,10 +9631,7 @@ else:
         if(sztestalt):
             VerbosePrintOut("Bad file found!")
         for member in sorted(szpfp.list(), key=lambda x: x.filename):
-            if(re.findall("^[.|/]", member.filename)):
-                fname = member.filename
-            else:
-                fname = "./"+member.filename
+            fname = member.filename
             if(not member.is_directory):
                 fpremode = int(stat.S_IFREG | 0x1b6)
             elif(member.is_directory):
@@ -9783,7 +9736,7 @@ def InFileListFiles(infile, fmttype="auto", filestart=0, seekstart=0, seekend=0,
     elif(py7zr_support and checkcompressfile == "7zipfile" and py7zr.is_7zfile(infile)):
         return SevenZipFileListFiles(infile, verbose, returnfp)
     elif(checkcompressfile == formatspecs['format_magic']):
-        return ArchiveFileListFiles(infile, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
+        return NeoFileListFiles(infile, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
     else:
         return False
     return False
