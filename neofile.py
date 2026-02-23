@@ -464,7 +464,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     getargs.outsecretkey,
                     False,
                     False,
-                    False,
+                    True,
                 )
             else:
                 tmpout = pyneofile.PackNeoFileFromInFile(
@@ -481,7 +481,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     fnamedict,
                     getargs.outsecretkey,
                     False,
-                    False,
+                    True,
                 )
 
             input_file = tempout
