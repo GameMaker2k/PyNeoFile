@@ -13,7 +13,7 @@
     Copyright 2018-2026 Game Maker 2k - http://intdb.sourceforge.net/
     Copyright 2018-2026 Kazuki Przyborowski - https://github.com/KazukiPrzyborowski
 
-    $FileInfo: setup.py - Last Update: 2/8/2026 Ver. 0.28.8 RC 1 - Author: cooldude2k $
+    $FileInfo: setup.py - Last Update: 2/24/2026 Ver. 0.30.0 RC 1 - Author: cooldude2k $
 '''
 
 import os
@@ -22,7 +22,7 @@ import sys
 from setuptools import setup
 
 # Open and read the version info file in a Python 2/3 compatible way
-verinfofilename = os.path.realpath("."+os.path.sep+os.path.sep+"pyneofile.py")
+verinfofilename = os.path.realpath("."+os.path.sep+"pyneofile"+os.path.sep+"pyneofile.py")
 
 # Use `with` to ensure the file is properly closed after reading
 # In Python 2, open defaults to text mode; in Python 3, it’s better to specify encoding
@@ -79,12 +79,8 @@ pymodule[
     'longdescription'] = 'A tar like file format name archivefile.'
 pymodule['platforms'] = 'OS Independent'
 pymodule['zipsafe'] = True
-if(PY2):
-    pymodule['pymodules'] = ['pyneofile']
-    pymodule['scripts'] = ['neofile.py']
-else:
-    pymodule['pymodules'] = ['pyneofile', 'pyneofile_py3']
-    pymodule['scripts'] = ['neofile.py', 'neofile_py3.py']
+pymodule['pymodules'] = ['pyneofile']
+pymodule['scripts'] = []
 pymodule['classifiers'] = [
     'Development Status :: 5 - Production/Stable',
     'Intended Audience :: Developers',
