@@ -6187,6 +6187,8 @@ def AppendFilesWithContentToList(infiles, dirlistfromtxt=False, extradata=[], js
         if not followlink and ftype in data_types:
             with open(fname, "rb") as fpc:
                 shutil.copyfileobj(fpc, fcontents, length=__filebuff_size__)
+                if(fsize is not fcontents.tell()):
+                    fsize = format(int(fcontents.tell()), 'x').lower()
                 typechecktest = CheckCompressionType(fcontents, filestart=0, closefp=False)
                 fcontents.seek(0, 0)
                 if(typechecktest is not False):
@@ -6466,6 +6468,8 @@ def AppendFilesWithContentFromTarFileToList(infile, extradata=[], jsondata={}, c
         if ftype in data_types:
             fpc = tarfp.extractfile(member)
             shutil.copyfileobj(fpc, fcontents, length=__filebuff_size__)
+            if(fsize is not fcontents.tell()):
+                fsize = format(int(fcontents.tell()), 'x').lower()
             fpc.close()
             typechecktest = CheckCompressionType(fcontents, filestart=0, closefp=False)
             fcontents.seek(0, 0)
@@ -6735,6 +6739,8 @@ else:
                 sparse_types = {12}
                 if ftype in zero_length_types:
                     fsize = format(int("0"), 'x').lower()
+                elif member.size is None:
+                    fsize = format(int("0"), 'x').lower()
                 elif ftype in data_types:
                     fsize = format(int(member.size), 'x').lower()
                 else:
@@ -6778,6 +6784,8 @@ else:
                         fcontents.write(member.read())
                     else:
                         pass
+                    if(fsize is not fcontents.tell()):
+                        fsize = format(int(fcontents.tell()), 'x').lower()
                     typechecktest = CheckCompressionType(fcontents, filestart=0, closefp=False)
                     fcontents.seek(0, 0)
                     if(typechecktest is not False):
@@ -7024,6 +7032,8 @@ def AppendFilesWithContentFromZipFileToList(infile, extradata=[], jsondata={}, c
         curcompression = "none"
         if ftype == 0:
             fcontents.write(zipfp.read(member.filename))
+            if(fsize is not fcontents.tell()):
+                fsize = format(int(fcontents.tell()), 'x').lower()
             typechecktest = CheckCompressionType(fcontents, filestart=0, closefp=False)
             fcontents.seek(0, 0)
             if(typechecktest is not False):
@@ -7260,6 +7270,8 @@ else:
             curcompression = "none"
             if ftype == 0:
                 fcontents.write(rarfp.read(member.filename))
+                if(fsize is not fcontents.tell()):
+                    fsize = format(int(fcontents.tell()), 'x').lower()
                 typechecktest = CheckCompressionType(fcontents, filestart=0, closefp=False)
                 fcontents.seek(0, 0)
                 if(typechecktest is not False):
