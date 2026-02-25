@@ -8494,7 +8494,7 @@ def PackNeoFileFromInFile(infile, outfile, fmttype="auto", compression="auto", c
     elif(IsSingleDict(formatspecs) and checkcompressfile == formatspecs['format_magic']):
         return RePackNeoFile(infile, outfile, fmttype, compression, compresswholefile, compressionlevel, False, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, saltkey, verbose, returnfp)
     else:
-        return False
+        return PackNeoFileFromBSDTarFile(infile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, checksumtype, extradata, jsondata, formatspecs, saltkey, verbose, returnfp)
     return False
 
 def NeoFileArrayValidate(infile, fmttype="auto", filestart=0, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, verbose=False, returnfp=False):
