@@ -8728,8 +8728,8 @@ def MultipleNeoFilesToArray(infile, fmttype="auto", filestart=0, seekstart=0, se
     return MultipleNeoFileToArray(infile, fmttype, filestart, seekstart, seekend, listonly, contentasfile, uncompress, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
 
 
-def TarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
-    checkcompressfile = __file_format_default__
+def TarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    checkcompressfile = fmttype
     if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
         ckformatspecs = formatspecs[checkcompressfile]
     fp = MkTempFile()
@@ -8739,12 +8739,12 @@ def TarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile
 
 
 if(not libarchive_support):
-    def BSDTarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    def BSDTarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
         return False
 
 if(libarchive_support):
-    def BSDTarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
-        checkcompressfile = __file_format_default__
+    def BSDTarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+        checkcompressfile = fmttype
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
@@ -8753,8 +8753,8 @@ if(libarchive_support):
         return listarrayfiles
 
 
-def ZipFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
-    checkcompressfile = __file_format_default__
+def ZipFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    checkcompressfile = fmttype
     if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
         ckformatspecs = formatspecs[checkcompressfile]
     fp = MkTempFile()
@@ -8764,12 +8764,12 @@ def ZipFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile
 
 
 if(not rarfile_support):
-    def RarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    def RarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
         return False
 
 if(rarfile_support):
-    def RarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
-        checkcompressfile = __file_format_default__
+    def RarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+        checkcompressfile = fmttype
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
@@ -8778,12 +8778,12 @@ if(rarfile_support):
         return listarrayfiles
 
 if(not py7zr_support):
-    def SevenZipFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    def SevenZipFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
         return False
 
 if(py7zr_support):
-    def SevenZipFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
-        checkcompressfile = __file_format_default__
+    def SevenZipFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+        checkcompressfile = fmttype
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
@@ -8792,22 +8792,22 @@ if(py7zr_support):
         return listarrayfiles
 
 
-def InFileToArray(infile, filestart=0, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, returnfp=False):
+def InFileToArray(infile, fmttype=__file_format_default__, filestart=0, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, returnfp=False):
     checkcompressfile = CheckCompressionSubType(infile, formatspecs, filestart, True)
     if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
-        formatspecs = formatspecs[checkcompressfile]
+        ckformatspecs = formatspecs[checkcompressfile]
     if(checkcompressfile == "tarfile" and TarFileCheck(infile)):
-        return TarFileToArray(infile, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
+        return TarFileToArray(infile, fmttype, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
     elif(checkcompressfile == "zipfile" and zipfile.is_zipfile(infile)):
-        return ZipFileToArray(infile, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
+        return ZipFileToArray(infile, fmttype, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
     elif(rarfile_support and checkcompressfile == "rarfile" and (rarfile.is_rarfile(infile) or rarfile.is_rarfile_sfx(infile))):
-        return RarFileToArray(infile, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
+        return RarFileToArray(infile, fmttype, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
     elif(py7zr_support and checkcompressfile == "7zipfile" and py7zr.is_7zfile(infile)):
-        return SevenZipFileToArray(infile, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
-    elif(checkcompressfile == formatspecs['format_magic']):
+        return SevenZipFileToArray(infile, fmttype, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
+    elif(checkcompressfile == ckformatspecs['format_magic']):
         return NeoFileToArray(infile, "auto", filestart, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
     else:
-        return False
+        return BSDTarFileToArray(infile, fmttype, seekstart, seekend, listonly, contentasfile, skipchecksum, formatspecs, seektoend, returnfp)
     return False
 
 
