@@ -8820,7 +8820,7 @@ def ListDirToArray(infiles, dirlistfromtxt=False, fmttype=__file_format_default_
 
 # ===== Function (keeps inarray schema; returns entries + indexes) =====
 
-def NeoFileArrayToArrayIndex(inarray, returnfp=False):
+def NeoFileArrayToArrayIndex(inarray, returnfp=True):
     """
     Build a bidirectional index over an archive listing while preserving the
     input 'inarray' as-is. Python 2/3 compatible, no external deps.
