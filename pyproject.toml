@@ -1,6 +1,6 @@
 [project]
     name = "PyNeoFile"
-    version = "0.30.4"
+    version = "0.30.6"
     readme = "README.md"
     license = { text = "BSD-3-Clause" }
     keywords = []
