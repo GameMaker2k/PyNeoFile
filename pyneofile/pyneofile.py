@@ -4222,7 +4222,7 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncom
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
     fp.seek(len(delimiter), 1)
-    fjend = fp.tell() - 1
+    fjend = fp.tell() - len(delimiter)
     jsonfcs = GetFileChecksum(fprejsoncontent, fjsonchecksumtype, True, formatspecs, saltkey)
     if(not CheckChecksums(fjsonchecksum, jsonfcs) and not skipchecksum):
         VerbosePrintOut("File JSON Data Checksum Error with file " +
@@ -4237,7 +4237,7 @@ def ReadFileHeaderDataWithContent(fp, listonly=False, contentasfile=False, uncom
                         fname + " at offset " + str(fheaderstart))
         VerbosePrintOut("'" + fcs + "' != " + "'" + newfcs + "'")
         return False
-    fhend = fp.tell() - 1
+    fhend = fp.tell() - len(delimiter)
     fcontentstart = fp.tell()
     fcontents = MkTempFile()
     pyhascontents = False
@@ -4437,7 +4437,7 @@ def ReadFileHeaderDataWithContentToArray(fp, listonly=False, contentasfile=True,
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
     fp.seek(len(delimiter), 1)
-    fjend = fp.tell() - 1
+    fjend = fp.tell() - len(delimiter)
     jsonfcs = GetFileChecksum(fprejsoncontent, fjsonchecksumtype, True, formatspecs, saltkey)
     if(not CheckChecksums(fjsonchecksum, jsonfcs) and not skipchecksum):
         VerbosePrintOut("File JSON Data Checksum Error with file " +
@@ -4452,7 +4452,7 @@ def ReadFileHeaderDataWithContentToArray(fp, listonly=False, contentasfile=True,
                         fname + " at offset " + str(fheaderstart))
         VerbosePrintOut("'" + fcs + "' != " + "'" + newfcs + "'")
         return False
-    fhend = fp.tell() - 1
+    fhend = fp.tell() - len(delimiter)
     fcontentstart = fp.tell()
     fcontents = MkTempFile()
     pyhascontents = False
@@ -4653,7 +4653,7 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
                 except (binascii.Error, json.decoder.JSONDecodeError, UnicodeDecodeError):
                     pass
     fp.seek(len(delimiter), 1)
-    fjend = fp.tell() - 1
+    fjend = fp.tell() - len(delimiter)
     jsonfcs = GetFileChecksum(fprejsoncontent, fjsonchecksumtype, True, formatspecs, saltkey)
     if(not CheckChecksums(fjsonchecksum, jsonfcs) and not skipchecksum):
         VerbosePrintOut("File JSON Data Checksum Error with file " +
@@ -4668,7 +4668,7 @@ def ReadFileHeaderDataWithContentToList(fp, listonly=False, contentasfile=False,
                         fname + " at offset " + str(fheaderstart))
         VerbosePrintOut("'" + fcs + "' != " + "'" + newfcs + "'")
         return False
-    fhend = fp.tell() - 1
+    fhend = fp.tell() - len(delimiter)
     fcontentstart = fp.tell()
     fcontents = MkTempFile()
     pyhascontents = False
@@ -4810,7 +4810,7 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
     if(formdel != formatspecs['format_delimiter']):
         return False
     inheader = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
-    headeroffsetend = fp.tell()
+    headeroffsetend = fp.tell() - len(delimiter)
     fnumextrafieldsize = int(inheader[15], 16)
     fnumextrafields = int(inheader[16], 16)
     fextrafieldslist = []
@@ -4995,7 +4995,7 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
                 return False
                 valid_archive = False
                 invalid_archive = True
-            prefhend = fp.tell() - 1
+            prefhend = fp.tell() - len(delimiter)
             prefcontentstart = fp.tell()
             prefcontents = MkTempFile()
             pyhascontents = False
@@ -5246,7 +5246,7 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
                 return False
                 valid_archive = False
                 invalid_archive = True
-            prefhend = fp.tell() - 1
+            prefhend = fp.tell() - len(delimiter)
             prefcontentstart = fp.tell()
             prefcontents = ""
             pyhascontents = False
