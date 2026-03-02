@@ -4746,12 +4746,7 @@ def ReadFileDataWithContent(fp, filestart=0, listonly=False, contentasfile=False
         return False
     if(formdel != formatspecs['format_delimiter']):
         return False
-    if(__use_new_style__):
-        inheader = ReadFileHeaderDataBySize(
-            fp, formatspecs['format_delimiter'])
-    else:
-        inheader = ReadFileHeaderDataWoSize(
-            fp, formatspecs['format_delimiter'])
+    inheader = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
     fprechecksumtype = inheader[-2]
     fprechecksum = inheader[-1]
     headercheck = ValidateHeaderChecksum([formstring] + inheader[:-1], fprechecksumtype, fprechecksum, formatspecs, saltkey)
@@ -4814,12 +4809,7 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
         return False
     if(formdel != formatspecs['format_delimiter']):
         return False
-    if(__use_new_style__):
-        inheader = ReadFileHeaderDataBySize(
-            fp, formatspecs['format_delimiter'])
-    else:
-        inheader = ReadFileHeaderDataWoSize(
-            fp, formatspecs['format_delimiter'])
+    inheader = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
     fnumextrafieldsize = int(inheader[15], 16)
     fnumextrafields = int(inheader[16], 16)
     fextrafieldslist = []
@@ -4976,12 +4966,7 @@ def ReadFileDataWithContentToArray(fp, filestart=0, seekstart=0, seekend=0, list
         il = 0
         while(il < seekstart):
             prefhstart = fp.tell()
-            if(__use_new_style__):
-                preheaderdata = ReadFileHeaderDataBySize(
-                    fp, formatspecs['format_delimiter'])
-            else:
-                preheaderdata = ReadFileHeaderDataWoSize(
-                    fp, formatspecs['format_delimiter'])
+            preheaderdata = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
             if(len(preheaderdata) == 0):
                 break
             prefsize = int(preheaderdata[5], 16)
@@ -5074,12 +5059,7 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
         return False
     if(formdel != formatspecs['format_delimiter']):
         return False
-    if(__use_new_style__):
-        inheader = ReadFileHeaderDataBySize(
-            fp, formatspecs['format_delimiter'])
-    else:
-        inheader = ReadFileHeaderDataWoSize(
-            fp, formatspecs['format_delimiter'])
+    inheader = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
     fnumextrafieldsize = int(inheader[15], 16)
     fnumextrafields = int(inheader[16], 16)
     fextrafieldslist = []
@@ -5235,12 +5215,7 @@ def ReadFileDataWithContentToList(fp, filestart=0, seekstart=0, seekend=0, listo
         il = 0
         while(il < seekstart):
             prefhstart = fp.tell()
-            if(__use_new_style__):
-                preheaderdata = ReadFileHeaderDataBySize(
-                    fp, formatspecs['format_delimiter'])
-            else:
-                preheaderdata = ReadFileHeaderDataWoSize(
-                    fp, formatspecs['format_delimiter'])
+            preheaderdata = ReadFileHeaderDataBySize(fp, formatspecs['format_delimiter'])
             if(len(preheaderdata) == 0):
                 break
             prefsize = int(preheaderdata[5], 16)
