@@ -29,5 +29,14 @@
         "magic": "ArchiveFile",
         "delimiter": "\u0000",
         "extension": ".arc"
+    },
+    "UwUFile": {
+        "len": 7,
+        "hex": "55775546696c65",
+        "ver": "001",
+        "name": "UwUFile",
+        "magic": "UwUFile",
+        "delimiter": "\u0000",
+        "extension": ".UwU"
     }
 }

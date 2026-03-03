@@ -580,8 +580,8 @@ __use_json_file__ = False
 __use_json_name__ = os.path.join(filecfgpath, "neofile.json")
 if(__use_ini_file__ and __use_json_file__):
     __use_json_file__ = False
-if('PYNEOFILE_CONFIG_FILE' in os.environ and os.path.exists(os.environ['PYNEOFILE_CONFIG_FILE']) and __use_env_file__):
-    scriptconf = os.environ['PYNEOFILE_CONFIG_FILE']
+if('PYARCHIVEFILE_CONFIG_FILE' in os.environ and os.path.exists(os.environ['PYARCHIVEFILE_CONFIG_FILE']) and __use_env_file__):
+    scriptconf = os.environ['PYARCHIVEFILE_CONFIG_FILE']
 else:
     prescriptpath = get_importing_script_path()
     if(prescriptpath is not None):
@@ -768,7 +768,8 @@ if not __use_ini_file__ and not __include_defaults__:
 if __include_defaults__:
     # Neo / Arc
     add_format(__file_format_multi_dict__, "NeoFile", "NeoFile", ".neo", "NeoFile")
-    add_format(__file_format_multi_dict__, "NeoFile", "NeoFile", ".arc", "NeoFile")
+    add_format(__file_format_multi_dict__, "ArchiveFile", "ArchiveFile", ".arc", "ArchiveFile")
+    add_format(__file_format_multi_dict__, "UwUFile", "UwUFile", ".UwU", "UwUFile")
 
 # Pick a default if current default key is not present
 if __file_format_default__ not in __file_format_multi_dict__:
@@ -5887,7 +5888,7 @@ def MakeEmptyFilePointer(fp, fmttype=__file_format_default__, checksumtype=["md5
     return fp
 
 
-def MakeEmptyArchiveFilePointer(fp, fmttype=__file_format_default__, checksumtype=["md5", "md5"], formatspecs=__file_format_multi_dict__, saltkey=None):
+def MakeEmptyNeoFilePointer(fp, fmttype=__file_format_default__, checksumtype=["md5", "md5"], formatspecs=__file_format_multi_dict__, saltkey=None):
     return MakeEmptyFilePointer(fp, fmttype, checksumtype, formatspecs, saltkey)
 
 
@@ -5964,7 +5965,7 @@ def MakeEmptyFile(outfile, fmttype="auto", compression="auto", compresswholefile
         return True
 
 
-def MakeEmptyArchiveFile(outfile, compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5"], formatspecs=__file_format_dict__, saltkey=None, returnfp=False):
+def MakeEmptyNeoFile(outfile, compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5"], formatspecs=__file_format_dict__, saltkey=None, returnfp=False):
     return MakeEmptyFile(outfile, "auto", compression, compresswholefile, compressionlevel, compressionuselist, checksumtype, formatspecs, saltkey, returnfp)
 
 
@@ -8588,7 +8589,7 @@ def TarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend
 
 
 if(not libarchive_support):
-    def BSDTarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
+    def BSDTarFileToArray(infile, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, seektoend=False, returnfp=False):
         return False
 
 if(libarchive_support):
@@ -9595,7 +9596,7 @@ def MultipleStackedNeoFileListFiles(infile, fmttype="auto", filestart=0, seeksta
         infile = [infile]
     outretval = {}
     for curfname in infile:
-        outretval[curfname] = StackedFoxFileListFiles(curfname, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
+        outretval[curfname] = StackedNeoFileListFiles(curfname, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
     return outretval
 
 
@@ -10269,7 +10270,7 @@ def InFileListFiles(infile, fmttype="auto", filestart=0, seekstart=0, seekend=0,
     elif(py7zr_support and checkcompressfile == "7zipfile" and py7zr.is_7zfile(infile)):
         return SevenZipFileListFiles(infile, verbose, returnfp)
     elif('format_magic' in ckformatspecs and checkcompressfile == ckformatspecs['format_magic']):
-        return ArchiveFileListFiles(infile, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
+        return NeoFileListFiles(infile, fmttype, filestart, seekstart, seekend, skipchecksum, formatspecs, saltkey, seektoend, verbose, newstyle, returnfp)
     else:
         return BSDTarFileListFiles(infile, formatspecs, verbose, returnfp)
     return False
