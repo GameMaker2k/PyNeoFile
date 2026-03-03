@@ -9757,7 +9757,7 @@ def NeoFileListFiles(infile, fmttype="auto", filestart=0, seekstart=0, seekend=0
     else:
         if(infile != "-" and not hasattr(infile, "read") and not hasattr(infile, "write") and not isinstance(infile, bytes)):
             infile = RemoveWindowsPath(infile)
-        listarrayfileslist = NeoFileToArray(infile, fmttype, filestart, seekstart, seekend, True, False, False, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
+        listarrayfileslist = ArchiveFileToArray(infile, fmttype, filestart, seekstart, seekend, True, False, False, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
     if(not listarrayfileslist):
         return False
     for listarrayfiles in listarrayfileslist:
@@ -9793,19 +9793,19 @@ def NeoFileListFiles(infile, fmttype="auto", filestart=0, seekstart=0, seekend=0
                 if(newstyle):
                     compratio = calc_compression(listarrayfiles['ffilelist'][lcfi]['fsize'], listarrayfiles['ffilelist'][lcfi]['fcsize'], "percent")
                     if(compratio=="-"):
-                        compratio = "\t"
+                        compratio = " "
                     else:
-                        compratio = "\t"+compratio
+                        compratio = str(" "+compratio)
                     if(listarrayfiles['ffilelist'][lcfi]['fcsize']==0):
-                        compressprint = str("").rjust(15) + "\t"
+                        compressprint = str("") + " "
                     else:
-                        compressprint = str(listarrayfiles['ffilelist'][lcfi]['fcsize']).rjust(15) + "\t"
-                    VerbosePrintOut(ftype_to_str(listarrayfiles['ffilelist'][lcfi]['ftype']) + "\t" + listarrayfiles['ffilelist'][lcfi]['fcompression'] + compratio + "\t" + str(
-                    listarrayfiles['ffilelist'][lcfi]['fsize']).rjust(15) + "\t" + compressprint + printfname)
+                        compressprint = str(listarrayfiles['ffilelist'][lcfi]['fcsize']) + " "
+                    VerbosePrintOut(ftype_to_str(listarrayfiles['ffilelist'][lcfi]['ftype']).rjust(5) + " " + listarrayfiles['ffilelist'][lcfi]['fcompression'].rjust(5) + compratio.rjust(5) + " " + str(
+                    listarrayfiles['ffilelist'][lcfi]['fsize']).rjust(15) + " " + compressprint.rjust(15) + printfname)
                 else:
                     dt = datetime.datetime.fromtimestamp(listarrayfiles['ffilelist'][lcfi]['fmtime'])
-                    VerbosePrintOut(PrintPermissionString(listarrayfiles['ffilelist'][lcfi]['fmode'], listarrayfiles['ffilelist'][lcfi]['ftype']) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(
-                    listarrayfiles['ffilelist'][lcfi]['fsize']).rjust(15) + "\t" + dt.strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+                    VerbosePrintOut(PrintPermissionString(listarrayfiles['ffilelist'][lcfi]['fmode'], listarrayfiles['ffilelist'][lcfi]['ftype']) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(
+                    listarrayfiles['ffilelist'][lcfi]['fsize']).rjust(15) + " " + dt.strftime('%Y-%m-%d %H:%M') + " " + printfname)
             lcfi = lcfi + 1
     if(returnfp):
         return listarrayfiles['fp']
@@ -9974,8 +9974,8 @@ def TarFileListFiles(infile, formatspecs=__file_format_multi_dict__, verbose=Fal
             fgprint = member.gname
             if(len(fgprint) <= 0):
                 fgprint = member.gid
-            VerbosePrintOut(PrintPermissionString(ffullmode, ftype) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(
-                member.size).rjust(15) + "\t" + datetime.datetime.fromtimestamp(member.mtime).strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+            VerbosePrintOut(PrintPermissionString(ffullmode, ftype) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(
+                member.size).rjust(15) + " " + datetime.datetime.fromtimestamp(member.mtime).strftime('%Y-%m-%d %H:%M') + " " + printfname)
         lcfi = lcfi + 1
     if(returnfp):
         return listarrayfiles['fp']
@@ -10103,8 +10103,8 @@ else:
                             fgprint = member.gid
                         else:
                             fgprint = "0"
-                    VerbosePrintOut(PrintPermissionString(ffullmode, ftype) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(
-                        fsize).rjust(15) + "\t" + datetime.datetime.fromtimestamp(member.mtime).strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+                    VerbosePrintOut(PrintPermissionString(ffullmode, ftype) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(
+                        fsize).rjust(15) + " " + datetime.datetime.fromtimestamp(member.mtime).strftime('%Y-%m-%d %H:%M') + " " + printfname)
                 lcfi = lcfi + 1
         if(returnfp):
             return listarrayfiles['fp']
@@ -10261,8 +10261,8 @@ def ZipFileListFiles(infile, verbose=False, returnfp=False):
             fgprint = fgname
             if(len(fgprint) <= 0):
                 fgprint = str(fgid)
-            VerbosePrintOut(PrintPermissionString(fmode, ftype) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(member.file_size).rjust(
-                15) + "\t" + datetime.datetime.fromtimestamp(int(get_unix_timestamp_zip(zipinfo))).strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+            VerbosePrintOut(PrintPermissionString(fmode, ftype) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(member.file_size).rjust(
+                15) + " " + datetime.datetime.fromtimestamp(int(get_unix_timestamp_zip(zipinfo))).strftime('%Y-%m-%d %H:%M') + " " + printfname)
         lcfi = lcfi + 1
     if(returnfp):
         return listarrayfiles['fp']
@@ -10394,8 +10394,8 @@ else:
                 fgprint = fgname
                 if(len(fgprint) <= 0):
                     fgprint = str(fgid)
-                VerbosePrintOut(PrintPermissionString(fmode, ftype) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(
-                    member.file_size).rjust(15) + "\t" + member.mtime.strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+                VerbosePrintOut(PrintPermissionString(fmode, ftype) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(
+                    member.file_size).rjust(15) + " " + member.mtime.strftime('%Y-%m-%d %H:%M') + " " + printfname)
             lcfi = lcfi + 1
         if(returnfp):
             return listarrayfiles['fp']
@@ -10507,8 +10507,8 @@ else:
                 fgprint = fgname
                 if(len(fgprint) <= 0):
                     fgprint = str(fgid)
-                VerbosePrintOut(PrintPermissionString(fmode, ftype) + "\t" + str(fuprint) + "/" + str(fgprint) + "\t" + str(
-                    fsize).rjust(15) + "\t" + member.creationtime.strftime('%Y-%m-%d %H:%M') + "\t" + printfname)
+                VerbosePrintOut(PrintPermissionString(fmode, ftype) + " " + str(fuprint) + "/" + str(fgprint) + " " + str(
+                    fsize).rjust(15) + " " + member.creationtime.strftime('%Y-%m-%d %H:%M') + " " + printfname)
             lcfi = lcfi + 1
         if(returnfp):
             return listarrayfiles['fp']
