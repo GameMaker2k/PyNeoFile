@@ -9715,7 +9715,7 @@ def UnPackNeoFile(infile, outdir=None, followlink=False, filestart=0, seekstart=
     else:
         if(infile != "-" and not hasattr(infile, "read") and not hasattr(infile, "write") and not isinstance(infile, bytes)):
             infile = RemoveWindowsPath(infile)
-        listarrayfilespre = ArchiveFileToArray(infile, "auto", filestart, seekstart, seekend, False, True, True, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
+        listarrayfilespre = NeoFileToArray(infile, "auto", filestart, seekstart, seekend, False, True, True, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
     if(not listarrayfilespre):
         return False
     if(not isinstance(listarrayfilespre, list)):
