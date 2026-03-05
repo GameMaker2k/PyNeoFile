@@ -9064,8 +9064,8 @@ def TarFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend
     if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
         ckformatspecs = formatspecs[checkcompressfile]
     fp = MkTempFile()
-    fp = PackArchiveFileFromTarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
-    listarrayfiles = ArchiveFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
+    fp = PackNeoFileFromTarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
+    listarrayfiles = NeoFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
     return listarrayfiles
 
 
@@ -9078,8 +9078,8 @@ else:
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
-        fp = PackArchiveFileFromBSDTarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
-        listarrayfiles = ArchiveFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
+        fp = PackNeoFileFromBSDTarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
+        listarrayfiles = NeoFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
         return listarrayfiles
 
 
@@ -9088,8 +9088,8 @@ def ZipFileToArray(infile, fmttype=__file_format_default__, seekstart=0, seekend
     if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
         ckformatspecs = formatspecs[checkcompressfile]
     fp = MkTempFile()
-    fp = PackArchiveFileFromZipFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
-    listarrayfiles = ArchiveFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
+    fp = PackNeoFileFromZipFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
+    listarrayfiles = NeoFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
     return listarrayfiles
 
 
@@ -9102,8 +9102,8 @@ else:
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
-        fp = PackArchiveFileFromRarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
-        listarrayfiles = ArchiveFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
+        fp = PackNeoFileFromRarFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
+        listarrayfiles = NeoFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
         return listarrayfiles
 
 if(not py7zr_support):
@@ -9115,45 +9115,45 @@ else:
         if(IsNestedDict(formatspecs) and checkcompressfile in formatspecs):
             ckformatspecs = formatspecs[checkcompressfile]
         fp = MkTempFile()
-        fp = PackArchiveFileFromSevenZipFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
-        listarrayfiles = ArchiveFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
+        fp = PackNeoFileFromSevenZipFile(infile, fp, "auto", "auto", True, None, compressionlistalt, ["md5", "md5", "md5", "md5", "md5"], [], {}, ckformatspecs, None, False, True)
+        listarrayfiles = NeoFileToArray(fp, "auto", 0, seekstart, seekend, listonly, contentasfile, True, skipchecksum, formatspecs, None, seektoend, returnfp)
         return listarrayfiles
 
-def PackArchiveFileFromTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+def PackNeoFileFromTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
     inarrayfile = TarFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-    return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+    return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
 if(not libarchive_support):
-    def PackArchiveFileFromBSDTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromBSDTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         return False
 else:
-    def PackArchiveFileFromBSDTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromBSDTarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         inarrayfile = BSDTarFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-        return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+        return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
-def PackArchiveFileFromZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+def PackNeoFileFromZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
     inarrayfile = ZipFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-    return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+    return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
 if(not rarfile_support):
-    def PackArchiveFileFromRarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromRarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         return False
 else:
-    def PackArchiveFileFromRarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromRarFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         inarrayfile = RarFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-        return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+        return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
 if(not py7zr_support):
-    def PackArchiveFileFromSevenZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromSevenZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         return False
 else:
-    def PackArchiveFileFromSevenZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+    def PackNeoFileFromSevenZipFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
         inarrayfile = SevenZipFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-        return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+        return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
-def PackArchiveFileFromInFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
+def PackNeoFileFromInFileAlt(infile, outfile, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, saltkey=None, verbose=False, returnfp=False):
     inarrayfile = InFileToArray(infile, fmttype, 0, 0, False, True, False, formatspecs, False, False)
-    return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+    return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
 def InFileToArray(infile, fmttype=__file_format_default__, filestart=0, seekstart=0, seekend=0, listonly=False, contentasfile=True, skipchecksum=False, formatspecs=__file_format_multi_dict__, saltkey=None, seektoend=False, returnfp=False):
     checkcompressfile = CheckCompressionSubType(infile, formatspecs, filestart, True)
@@ -9178,13 +9178,13 @@ def InFileToArray(infile, fmttype=__file_format_default__, filestart=0, seekstar
 
 def ListDirToArray(infiles, dirlistfromtxt=False, fmttype=__file_format_default__, compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, followlink=False, filestart=0, seekstart=0, seekend=0, listonly=False, saltkey=None, skipchecksum=False, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_dict__, verbose=False, seektoend=False, returnfp=False):
     outarray = MkTempFile()
-    packform = PackArchiveFile(infiles, outarray, dirlistfromtxt, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, followlink, checksumtype, extradata, jsondata, formatspecs, saltkey, verbose, True)
-    listarrayfiles = ArchiveFileToArray(outarray, "auto", filestart, seekstart, seekend, listonly, True, True, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
+    packform = PackNeoFile(infiles, outarray, dirlistfromtxt, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, followlink, checksumtype, extradata, jsondata, formatspecs, saltkey, verbose, True)
+    listarrayfiles = NeoFileToArray(outarray, "auto", filestart, seekstart, seekend, listonly, True, True, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
     return listarrayfiles
 
 def PackNeoFromDirListAlt(infiles, outfile, dirlistfromtxt=False, fmttype="auto", compression="auto", compresswholefile=True, compressionlevel=None, compressionuselist=compressionlistalt, followlink=False, checksumtype=["md5", "md5", "md5", "md5", "md5"], extradata=[], jsondata={}, formatspecs=__file_format_multi_dict__, saltkey=None, verbose=False, returnfp=False):
     inarrayfile = ListDirToArray(infiles, dirlistfromtxt, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, followlink, 0, 0, 0, False, None, False, checksumtype, extradata, jsondata, formatspecs, False, False, False)
-    return RePackArchiveFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
+    return RePackNeoFile(inarrayfile, outfile, fmttype, compression, compresswholefile, compressionlevel, compressionuselist, False, 0, 0, 0, checksumtype, False, extradata, jsondata, formatspecs, None, saltkey, False, verbose, returnfp)
 
 # ===== Function (keeps inarray schema; returns entries + indexes) =====
 
@@ -10016,7 +10016,7 @@ def NeoFileListFiles(infile, fmttype="auto", filestart=0, seekstart=0, seekend=0
     else:
         if(infile != "-" and not hasattr(infile, "read") and not hasattr(infile, "write") and not isinstance(infile, bytes)):
             infile = RemoveWindowsPath(infile)
-        listarrayfileslist = ArchiveFileToArray(infile, fmttype, filestart, seekstart, seekend, True, False, False, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
+        listarrayfileslist = NeoFileToArray(infile, fmttype, filestart, seekstart, seekend, True, False, False, skipchecksum, formatspecs, saltkey, seektoend, returnfp)
     if(not listarrayfileslist):
         return False
     for listarrayfiles in listarrayfileslist:
